@@ -1,2 +1,2 @@
-# Motor-Neural-Net
-Neural Network for system identification of motors
+# Actuator-Neural-Net
+Neural Network for system identification of actuators

@@ -14,15 +14,15 @@ with open('requirements.txt') as f:
 
 
 setup(
-    name='motor_nn',
+    name='actuator_nn',
     version='0.0.0',
-    description='Neural Network for system identification of motors.',
+    description='Neural Network for system identification of actuators.',
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
     author='Alvin Zhu',
     license='MIT',
-    project_urls={'GitHub':'https://github.com/alvister88/Motor-Neural-Net.git'},
-    packages=find_packages(include=['motor_nn', 'motor_nn.*']),
+    project_urls={'GitHub':'https://github.com/alvister88/Actuator-Neural-Net.git'},
+    packages=find_packages(include=['actuator_nn', 'actuator_nn.*']),
     install_requires=requirements,
     classifiers=[
         'Development Status :: 4 - Beta',
