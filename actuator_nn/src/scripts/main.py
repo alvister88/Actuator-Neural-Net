@@ -1,4 +1,4 @@
-from ActuatorNet import ActuatorNet
+from ActuatorNet import ActuatorNet, train_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,10 +17,13 @@ def main():
 
     # Define a loss function and optimizer
     criterion = nn.MSELoss()  # Mean Squared Error Loss
-    optimizer = optim.Adam(net.parameters(), lr=0.001)
+    optimizer = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-5)  # Added weight_decay for regularization
 
     # Generate dummy data
     train_loader = generate_dummy_data(10000)
 
     # Train the network
-    net.train_model(net, criterion, optimizer, train_loader)
+    train_model(net, criterion, optimizer, train_loader)
+
+if __name__ == "__main__":
+    main()
