@@ -55,7 +55,7 @@ def main():
 
     # Define a loss function and optimizer
     criterion = nn.MSELoss()  # Mean Squared Error Loss
-    optimizer = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-5)  # Added weight_decay for regularization
+    optimizer = optim.Adam(net.parameters(), lr=0.0001, weight_decay=1e-4)  # Added weight_decay for regularization
 
     # Generate dummy data
     train_loader = generate_dummy_sine_data(10000)
