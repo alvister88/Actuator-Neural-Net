@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import matplotlib.pyplot as plt
 
 # Define the Actuator Network
@@ -80,52 +81,3 @@ class ActuatorNet(nn.Module):
         x = self.fc6(x)
         return x
 
-# Example training loop with loss tracking
-def train_model(net, criterion, optimizer, train_loader, val_loader=None, num_epochs=100):
-    train_losses = []
-    val_losses = []
-    
-    for epoch in range(num_epochs):
-        net.train()
-        running_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            inputs, labels = data
-            
-            optimizer.zero_grad()
-            
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            
-            running_loss += loss.item()
-        
-        epoch_loss = running_loss / len(train_loader)
-        train_losses.append(epoch_loss)
-        print(f'Epoch {epoch + 1}, Training Loss: {epoch_loss:.3f}')
-        
-        if val_loader:
-            net.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for data in val_loader:
-                    inputs, labels = data
-                    outputs = net(inputs)
-                    loss = criterion(outputs, labels)
-                    val_loss += loss.item()
-            epoch_val_loss = val_loss / len(val_loader)
-            val_losses.append(epoch_val_loss)
-            print(f'Epoch {epoch + 1}, Validation Loss: {epoch_val_loss:.3f}')
-    
-    print('Finished Training')
-    
-    # Plot the training and validation loss
-    plt.figure(figsize=(10, 5))
-    plt.plot(range(1, num_epochs + 1), train_losses, label='Training Loss')
-    if val_loader:
-        plt.plot(range(1, num_epochs + 1), val_losses, label='Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.title('Training and Validation Loss')
-    plt.show()
