@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from ActuatorNet import ActuatorNet
+from actuator_nn.src.utils.DCMotorPlant import DCMotorPlant
+from scipy.integrate import odeint
 
 # Load the model weights
 def load_model_weights(model, weight_path):
@@ -9,19 +11,41 @@ def load_model_weights(model, weight_path):
     model.eval()  # Set to evaluation mode
     print("Model weights loaded.")
 
-# Generate dummy data for testing predictions
-def generate_dummy_test_data(num_samples):
+# Generate test data using the simulated motor plant
+def generate_motor_plant_test_data(num_samples, noise_levels=None):
+    motor = DCMotorPlant()
+    if noise_levels:
+        motor.set_noise(**noise_levels)
+
+    # Time vector
     t = np.linspace(0, 2 * np.pi, num_samples)
-    pos_error = np.sin(t) + 0.1 * np.random.randn(num_samples)
-    vel = np.cos(t) + 0.1 * np.random.randn(num_samples)
+    dt = t[1] - t[0]
+    
+    # Desired angular velocity (sine wave)
+    omega_desired = np.sin(t)
+    
+    # Simulate the motor with a PID controller
+    i = np.zeros_like(t)
+    omega = np.zeros_like(t)
+    V = np.zeros_like(t)
+    y = [0.0, 0.0]  # Initial conditions: [current, angular velocity]
+
+    for idx in range(1, len(t)):
+        # No PID in this testing, we simulate the motor response directly
+        V[idx] = omega_desired[idx]  # Use the desired angular velocity as a direct input for simplicity
+        y = odeint(motor.motor_model, y, [t[idx-1], t[idx]], args=(V[idx],))[1]
+        i[idx], omega[idx] = y
+
+    # Create input features: current state and past two states
     inputs = []
     actuals = []
     for i in range(2, num_samples):
         inputs.append([
-            pos_error[i], pos_error[i-1], pos_error[i-2],
-            vel[i], vel[i-1], vel[i-2]
+            omega[i], omega[i-1], omega[i-2],
+            V[i], V[i-1], V[i-2]
         ])
-        actuals.append(np.sin(t[i]))  # Actual torque values (sine wave)
+        actuals.append(omega_desired[i])  # Actual desired torque
+
     inputs = np.array(inputs)
     inputs = torch.tensor(inputs, dtype=torch.float32)
     actuals = np.array(actuals)
@@ -32,10 +56,10 @@ def main():
     net = ActuatorNet()
 
     # Load the saved weights
-    load_model_weights(net, 'actuator_net_weights.pt')
+    load_model_weights(net, '../weights/actuator_net_weights.pt')
 
-    # Generate dummy test data
-    test_inputs, actual_torques = generate_dummy_test_data(100)
+    # Generate test data using the motor plant
+    test_inputs, actual_torques = generate_motor_plant_test_data(100, noise_levels={'V_noise': 0.01, 'i_noise': 0.01, 'omega_noise': 0.05})
 
     # Make predictions
     with torch.no_grad():  # Disable gradient computation
