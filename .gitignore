@@ -1,4 +1,5 @@
 /build*
 /dist*
 actuator_nn.egg-info
+__pycache__
 *.pyc
