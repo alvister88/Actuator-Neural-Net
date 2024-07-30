@@ -3,3 +3,4 @@ torch
 pathlib
 matplotlib
 scipy
+pathlib
