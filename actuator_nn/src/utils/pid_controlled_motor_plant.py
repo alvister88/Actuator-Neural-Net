@@ -20,13 +20,13 @@ def main():
     omega_desired = np.gradient(position_desired, dt)
 
     # PID Controller
-    pid = PIDController(Kp=500.0, Ki=1.0, Kd=5.0, setpoint=0)
+    pid = PIDController(Kp=200.0, Ki=1.0, Kd=5.0, setpoint=0)
 
     # Simulate the motor
     i = np.zeros_like(t)
     omega = np.zeros_like(t)
     V = np.zeros_like(t)
-    y = [0.0, 0.0]  # Initial conditions: [current, angular velocity]
+    y = [0.0, 1.0]  # Initial conditions: [current, angular velocity]
 
     for idx in range(1, len(t)):
         pid.setpoint = omega_desired[idx]
