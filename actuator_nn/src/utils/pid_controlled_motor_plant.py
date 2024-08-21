@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
 def main():
-    motor = DCMotorPlant(R=1.0, L=0.5, Kb=0.01, Kt=0.01, J=0.01, b=0.1)
+    motor = DCMotorPlant(R=1.0, L=0.5, Kb=0.01, Kt=0.2, J=0.01, b=0.1)
     
     # Set noise levels (example: V_noise = 0.1, i_noise = 0.01, omega_noise = 0.05)
     motor.set_noise(V_noise=0.001, i_noise=0.0001, omega_noise=0.0001)
@@ -20,7 +20,7 @@ def main():
     omega_desired = np.gradient(position_desired, dt)
 
     # PID Controller
-    pid = PIDController(Kp=500.0, Ki=1.0, Kd=5.0, setpoint=0)
+    pid = PIDController(Kp=8.0, Ki=0.0, Kd=0.50, setpoint=0)
 
     # Simulate the motor
     i = np.zeros_like(t)

@@ -53,7 +53,7 @@ def generate_motor_plant_data(num_samples, noise_levels):
 
     inputs = np.array(inputs)
     labels = np.array(labels)
-
+   
     inputs = torch.tensor(inputs, dtype=torch.float32)
     labels = torch.tensor(labels, dtype=torch.float32)
 
