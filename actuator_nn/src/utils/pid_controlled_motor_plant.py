@@ -26,7 +26,7 @@ def main():
     i = np.zeros_like(t)
     omega = np.zeros_like(t)
     V = np.zeros_like(t)
-    y = [0.0, 0.0]  # Initial conditions: [current, angular velocity]
+    y = [0.0, 1.0]  # Initial conditions: [current, angular velocity]
 
     for idx in range(1, len(t)):
         pid.setpoint = omega_desired[idx]
