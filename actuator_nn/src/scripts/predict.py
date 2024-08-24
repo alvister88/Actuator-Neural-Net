@@ -84,7 +84,7 @@ def main():
     X, y = prepare_sequence_data(position_errors, velocities, torques)
 
     # Load the trained model
-    model_path = '../weights/actuator_net_weights.pt'  # Update this path as needed
+    model_path = '../weights/best_actuator_model6.pt'  # Update this path as needed
     model = load_model(model_path)
     
     # Evaluate the model

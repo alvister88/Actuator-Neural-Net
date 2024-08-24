@@ -19,6 +19,10 @@ class ActuatorNetTrainer:
     @staticmethod
     def train_model(net, position_errors, velocities, torques, lri=0.001, lrf=0.0001, batch_size=32, num_epochs=1000, 
                     save_path='actuator_model.pt', project_name='actuator-net-training', run_name='actuator-net-run'):
+        # Set device to GPU if available
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        net.to(device)  # Move model to GPU
+
         criterion = nn.MSELoss()
         optimizer = optim.Adam(net.parameters(), lr=lri)
 
@@ -40,9 +44,12 @@ class ActuatorNetTrainer:
         train_split = int(0.8 * len(X))
         val_split = int(0.9 * len(X))
         
-        X_train, y_train = torch.FloatTensor(X[:train_split]), torch.FloatTensor(y[:train_split])
-        X_val, y_val = torch.FloatTensor(X[train_split:val_split]), torch.FloatTensor(y[train_split:val_split])
-        X_test, y_test = torch.FloatTensor(X[val_split:]), torch.FloatTensor(y[val_split:])
+        X_train = torch.FloatTensor(X[:train_split]).to(device)  # Move data to GPU
+        y_train = torch.FloatTensor(y[:train_split]).to(device)
+        X_val = torch.FloatTensor(X[train_split:val_split]).to(device)
+        y_val = torch.FloatTensor(y[train_split:val_split]).to(device)
+        X_test = torch.FloatTensor(X[val_split:]).to(device)
+        y_test = torch.FloatTensor(y[val_split:]).to(device)
 
         train_losses = []
         val_losses = []
@@ -103,6 +110,10 @@ class ActuatorNetTrainer:
 
     @staticmethod
     def load_model(net, load_path='actuator_model.pt'):
+        # Load model weights
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        net.to(device)  # Move model to GPU
+
         if os.path.exists(load_path):
             net.load_state_dict(torch.load(load_path))
             print(f'Model loaded from {load_path}')
@@ -112,17 +123,20 @@ class ActuatorNetTrainer:
 
     @staticmethod
     def evaluate_model(net, X_test, y_test, position_errors, velocities, torques):
+        # Evaluate model
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         net.eval()
+
         with torch.no_grad():
-            predictions = net(X_test).numpy().flatten()
+            predictions = net(X_test).cpu().numpy().flatten()  # Move predictions back to CPU for numpy operations
 
         # Calculate RMS error
-        rms_error = np.sqrt(np.mean((predictions - y_test.numpy()) ** 2))
+        rms_error = np.sqrt(np.mean((predictions - y_test.cpu().numpy()) ** 2))
         print(f'Test RMS Error: {rms_error:.3f} N·m')
 
         # Plot predictions vs actual
         plt.figure(figsize=(10, 5))
-        plt.scatter(y_test, predictions, alpha=0.5)
+        plt.scatter(y_test.cpu().numpy(), predictions, alpha=0.5)  # Move y_test back to CPU for plotting
         plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
         plt.xlabel('Actual Torque (N·m)')
         plt.ylabel('Predicted Torque (N·m)')
@@ -145,12 +159,12 @@ class ActuatorNetTrainer:
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(y_test, label='Actual Torque')
+        plt.plot(y_test.cpu().numpy(), label='Actual Torque')
         plt.plot(predictions, label='Predicted Torque')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(y_test - predictions, label='Prediction Error')
+        plt.plot(y_test.cpu().numpy() - predictions, label='Prediction Error')
         plt.legend()
 
         plt.tight_layout()
