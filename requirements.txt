@@ -4,3 +4,5 @@ pathlib
 matplotlib
 scipy
 pathlib
+pandas
+scikit-learn
