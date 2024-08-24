@@ -6,3 +6,4 @@ scipy
 pathlib
 pandas
 scikit-learn
+wandb

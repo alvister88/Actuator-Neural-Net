@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from ActuatorNet import ActuatorNet
 from ActuatorNetTrainer import ActuatorNetTrainer
+import wandb
 
 def load_data(file_path):
     data = pd.read_csv(file_path, delimiter=',')
@@ -12,14 +13,29 @@ def load_data(file_path):
 
 def main():
     # Load data
-    position_errors, velocities, torques = load_data('../data/normal1.txt')
+    position_errors, velocities, torques = load_data('../data/normal2+normal3+contact1.txt')
 
-    # Create and train the model
+    path = '../weights/best_actuator_model4.pt'
+
+    # Create the model
     model = ActuatorNet(dropout_rate=0.2)
-    trained_model, X_val, y_val = ActuatorNetTrainer.train_model(model, position_errors, velocities, torques, learning_rate=0.001, batch_size=32, num_epochs=2000)
 
-    # Evaluate the model
-    ActuatorNetTrainer.evaluate_model(trained_model, X_val, y_val, position_errors, velocities, torques)
+    # Set Wandb params
+    project_name = 'actuator-net-training'
+    run_name = 'actuator-net-4'
+
+    # Train the model and get test data
+    trained_model, X_test, y_test = ActuatorNetTrainer.train_model(
+        model, position_errors, velocities, torques, 
+        lri=0.008, lrf=0.007, batch_size=32, num_epochs=1000, 
+        save_path=path, project_name=project_name, run_name=run_name 
+    )
+
+    # Load the best model
+    best_model = ActuatorNetTrainer.load_model(model, load_path=path)
+
+    # Evaluate the best model on the test set
+    ActuatorNetTrainer.evaluate_model(best_model, X_test, y_test, position_errors, velocities, torques)
 
 if __name__ == "__main__":
     main()
