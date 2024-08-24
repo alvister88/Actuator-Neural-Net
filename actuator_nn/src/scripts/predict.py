@@ -1,8 +1,9 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-from ActuatorNet import ActuatorNet  # Make sure this import works with your file structure
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from ActuatorNet import ActuatorNet  # Ensure this import works with your file structure
 from ActuatorNetTrainer import ActuatorNetTrainer
 
 def load_data(file_path):
@@ -41,37 +42,45 @@ def evaluate_model(model, X, y, position_errors, velocities, torques):
     percentage_accuracy = (1 - (rms_error / torque_range)) * 100
     print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
 
-    # Plot predictions vs actual
-    plt.figure(figsize=(10, 5))
-    plt.scatter(y, predictions, alpha=0.5)
-    plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2)
-    plt.xlabel('Actual Torque (N·m)')
-    plt.ylabel('Predicted Torque (N·m)')
-    plt.title('Actuator Network Predictions vs Actual Torque')
-    plt.show()
+    # Plot predictions vs actual using Plotly
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual'))
+    fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')))
+    fig.update_layout(
+        title='Actuator Network Predictions vs Actual Torque',
+        xaxis_title='Actual Torque (N·m)',
+        yaxis_title='Predicted Torque (N·m)',
+        yaxis=dict(tickformat=".2f")  # Format the y-axis to show more decimal places for clarity
+    )
 
-    # Plot error, velocity, predicted torque, and actual torque
-    plt.figure(figsize=(12, 10))
-    plt.subplot(4, 1, 1)
-    plt.plot(position_errors[-len(y):], label='Error')
-    plt.title('Data Visualization')
-    plt.legend()
+    # Adding horizontal lines at specific intervals
+    for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):  # Adjust the interval as needed
+        fig.add_hline(y=i, line_dash="dash", line_color="gray")
 
-    plt.subplot(4, 1, 2)
-    plt.plot(velocities[-len(y):], label='Velocity')
-    plt.legend()
+    fig.show()
 
-    plt.subplot(4, 1, 3)
-    plt.plot(y, label='Actual Torque')
-    plt.plot(predictions, label='Predicted Torque')
-    plt.legend()
+    # Plot error, velocity, predicted torque, and actual torque using Plotly
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.01)
 
-    plt.subplot(4, 1, 4)
-    plt.plot(y - predictions, label='Prediction Error')
-    plt.legend()
+    fig.add_trace(go.Scatter(y=position_errors[-len(y):], mode='lines', name='Error'), row=1, col=1)
+    fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5)  # Specify units if known
 
-    plt.tight_layout()
-    plt.show()
+    fig.add_trace(go.Scatter(y=velocities[-len(y):], mode='lines', name='Velocity'), row=2, col=1)
+    fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)  # Specify units if known
+
+    fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(dash='dot')), row=3, col=1)
+    fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque'), row=3, col=1)
+    fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=0.25)
+
+    fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
+    fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.1)
+
+    # Adding horizontal lines to the subplots
+    for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):  # Adjust the interval as needed
+        fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
+
+    fig.update_layout(height=800, title_text='Data Visualization', showlegend=True)
+    fig.show()
 
     return predictions
 
