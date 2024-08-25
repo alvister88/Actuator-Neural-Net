@@ -18,7 +18,7 @@ class ActuatorNetTrainer:
         return np.array(X), np.array(y)
 
     @staticmethod
-    def train_model(net, position_errors, velocities, torques, lri=0.001, lrf=0.0001, batch_size=32, num_epochs=1000, 
+    def train_model(net, position_errors, velocities, torques, lri=0.001, lrf=0.0001, batch_size=32, weight_decay=0.01, num_epochs=1000, 
                     save_path='actuator_model.pt', project_name='actuator-net-training', run_name='actuator-net-run'):
         # Ensure unique save path
         base_save_path = save_path.rsplit('.', 1)[0]
@@ -41,7 +41,7 @@ class ActuatorNetTrainer:
             print("Using CPU")
 
         criterion = nn.MSELoss()
-        optimizer = optim.Adam(net.parameters(), lr=lri)
+        optimizer = optim.AdamW(net.parameters(), lr=lri, weight_decay=weight_decay)
 
         # Initialize W&B
         wandb.init(project=project_name, name=run_name, config={
@@ -50,6 +50,7 @@ class ActuatorNetTrainer:
             "batch_size": batch_size,
             "num_epochs": num_epochs,
             "save_path": save_path,
+            "weight_decay": weight_decay
         })
 
         # Learning rate scheduler
@@ -154,25 +155,24 @@ class ActuatorNetTrainer:
 
     @staticmethod
     def evaluate_model(net, X_test, y_test, position_errors, velocities, torques):
-        # Evaluate model
-        device = 'cpu'
-        net.to(device)
+        device = next(net.parameters()).device  # Get the device of the model
         net.eval()
-
         with torch.no_grad():
-            predictions = net(X_test).cpu().numpy().flatten()  # Move predictions to CPU before converting to numpy
+            X_test = X_test.to(device)  # Move X_test to the same device as the model
+            y_test = y_test.to(device)  # Move y_test to the same device as the model
+            predictions = net(X_test).cpu().numpy().flatten()  # Move predictions back to CPU for numpy operations
 
-        # Move y_test to CPU and convert to numpy
-        y_test_np = y_test.cpu().numpy()
+        # Move y_test back to CPU for numpy operations
+        y_test = y_test.cpu().numpy()
 
         # Calculate RMS error
-        rms_error = np.sqrt(np.mean((predictions - y_test_np) ** 2))
+        rms_error = np.sqrt(np.mean((predictions - y_test) ** 2))
         print(f'Test RMS Error: {rms_error:.3f} N·m')
 
         # Plot predictions vs actual
         plt.figure(figsize=(10, 5))
-        plt.scatter(y_test_np, predictions, alpha=0.5)
-        plt.plot([y_test_np.min(), y_test_np.max()], [y_test_np.min(), y_test_np.max()], 'r--', lw=2)
+        plt.scatter(y_test, predictions, alpha=0.5)
+        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
         plt.xlabel('Actual Torque (N·m)')
         plt.ylabel('Predicted Torque (N·m)')
         plt.title('Actuator Network Predictions vs Actual Torque (Test Set)')
@@ -194,12 +194,12 @@ class ActuatorNetTrainer:
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(y_test_np, label='Actual Torque')
+        plt.plot(y_test, label='Actual Torque')
         plt.plot(predictions, label='Predicted Torque')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(y_test_np - predictions, label='Prediction Error')
+        plt.plot(y_test - predictions, label='Prediction Error')
         plt.legend()
 
         plt.tight_layout()

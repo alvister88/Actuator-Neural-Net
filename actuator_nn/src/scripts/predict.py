@@ -48,7 +48,7 @@ def evaluate_model(model, X, y, position_errors, velocities, torques, device):
         predictions = model(X_tensor).cpu().numpy().flatten()
     end_time = time.time()
     
-    total_inference_time = 1000 *(end_time - start_time) 
+    total_inference_time = 1000 * (end_time - start_time) 
     average_inference_time = 1000 * (total_inference_time / len(X)) 
     
     print(f'Total inference time: {total_inference_time:.4f} ms')
@@ -100,6 +100,25 @@ def evaluate_model(model, X, y, position_errors, velocities, torques, device):
     for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
         fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
 
+    # Add annotations
+    annotations = [
+        f"Device: {device.type}",
+        f"Test RMS Error: {rms_error:.3f} N·m",
+        f"Accuracy: {percentage_accuracy:.2f}%",
+        f"Total inference: {total_inference_time:.4f} ms",
+        f"Avg. inference: {average_inference_time:.6f} us",
+    ]
+
+    for i, annotation in enumerate(annotations):
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=1.10, y=0.50 - i*0.04,  # Adjust vertical spacing between annotations
+            text=annotation,
+            showarrow=False,
+            font=dict(size=11),
+            align="left",
+        )
+
     fig.update_layout(height=800, title_text='Data Visualization', showlegend=True)
     fig.show()
 
@@ -114,7 +133,7 @@ def main():
     X, y = prepare_sequence_data(position_errors, velocities, torques)
 
     # Load the trained model
-    model_path = '../weights/best_actuator_model7.pt'  # Update this path as needed
+    model_path = '../weights/best_actuator_model11.pt'  # Update this path as needed
     model, device = load_model(run_device='cpu', model_path=model_path)
     
     # Evaluate the model
