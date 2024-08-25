@@ -2,40 +2,40 @@ import numpy as np
 import pandas as pd
 from ActuatorNet import ActuatorNet
 from ActuatorNetTrainer import ActuatorNetTrainer
+from ActuatorNetEvaluator import ActuatorNetEvaluator
 import wandb
 
-def load_data(file_path):
-    data = pd.read_csv(file_path, delimiter=',')
-    position_errors = data['Error'].values
-    velocities = data['Velocity'].values
-    torques = data['Torque'].values
-    return position_errors, velocities, torques
-
 def main():
-    # Load data
-    position_errors, velocities, torques = load_data('../data/normal2+normal3+contact1.txt')
 
-    path = '../weights/best_actuator_model11.pt'
+    model_path = '../weights/best_actuator_model16.pt'
+    data_path = '../data/normal2+normal3+contact1.txt'
 
     # Create the model
-    model = ActuatorNet(dropout_rate=0.1)
+    model = ActuatorNet(dropout_rate=0.08)
+    trainer = ActuatorNetTrainer(model, device='cuda')
 
     # Set Wandb params
     project_name = 'actuator-net-training'
-    run_name = 'actuator-net-11'
+    run_name = 'actuator-net-16'
+    entity_name = 'alvister88'
 
+    
     # Train the model and get test data
-    trained_model, X_test, y_test = ActuatorNetTrainer.train_model(
-        model, position_errors, velocities, torques, 
-        lri=0.004, lrf=0.0002, batch_size=32, num_epochs=1000, weight_decay=0.01, 
-        save_path=path, project_name=project_name, run_name=run_name 
+    trained_model, X_test, y_test = trainer.train_model(
+        data_path=data_path, 
+        lri=0.001, lrf=0.00008, batch_size=32, num_epochs=400, weight_decay=0.01, 
+        save_path=model_path, entity_name=entity_name, project_name=project_name, run_name=run_name 
     )
 
-    # Load the best model
-    best_model = ActuatorNetTrainer.load_model(model, load_path=path)
+    # Evaluate the model after training
+    eval_data_path = '../data/contact1.txt'  # Update this path as needed
 
-    # Evaluate the best model on the test set
-    ActuatorNetTrainer.evaluate_model(best_model, X_test, y_test, position_errors, velocities, torques)
+    evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
+    
+    position_errors, velocities, torques = evaluator.load_data(eval_data_path)
+    X, y = evaluator.prepare_sequence_data(position_errors, velocities, torques)
+    
+    evaluator.evaluate_model(X, y, position_errors, velocities, torques)
 
 if __name__ == "__main__":
     main()
