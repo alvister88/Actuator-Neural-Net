@@ -1,55 +1,50 @@
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 def load_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
 def plot_data(data):
     # Create a figure with subplots
-    fig, axs = plt.subplots(5, 1, figsize=(12, 20), sharex=True)
-    fig.suptitle('Actuator Data Visualization', fontsize=16)
+    fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.02,
+                        subplot_titles=('Position', 'Velocity', 'Acceleration', 'Error', 'Torque'))
 
-    # Create a sample index
-    samples = range(len(data))
+    # Create a sample index as a list
+    samples = list(range(len(data)))
 
-    # Plot Samples vs TargetPosition
-    axs[0].plot(samples, data['TargetPosition'], label='Target Position')
-    axs[0].plot(samples, data['CurrentPosition'], label='Current Position')
-    axs[0].set_ylabel('Position')
-    axs[0].legend()
-    axs[0].grid(True)
+    # Plot Samples vs TargetPosition and CurrentPosition
+    fig.add_trace(go.Scatter(x=samples, y=data['TargetPosition'], name='Target Position'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=samples, y=data['CurrentPosition'], name='Current Position'), row=1, col=1)
 
     # Plot Samples vs Velocity
-    axs[1].plot(samples, data['Velocity'], label='Velocity')
-    axs[1].set_ylabel('Velocity')
-    axs[1].legend()
-    axs[1].grid(True)
+    fig.add_trace(go.Scatter(x=samples, y=data['Velocity'], name='Velocity'), row=2, col=1)
 
     # Plot Samples vs Acceleration
-    axs[2].plot(samples, data['Acceleration'], label='Acceleration')
-    axs[2].set_ylabel('Acceleration')
-    axs[2].legend()
-    axs[2].grid(True)
+    fig.add_trace(go.Scatter(x=samples, y=data['Acceleration'], name='Acceleration'), row=3, col=1)
 
     # Plot Samples vs Error
-    axs[3].plot(samples, data['Error'], label='Error')
-    axs[3].set_ylabel('Error')
-    axs[3].legend()
-    axs[3].grid(True)
+    fig.add_trace(go.Scatter(x=samples, y=data['Error'], name='Error'), row=4, col=1)
 
     # Plot Samples vs Torque
-    axs[4].plot(samples, data['Torque'], label='Torque')
-    axs[4].set_xlabel('Samples')
-    axs[4].set_ylabel('Torque')
-    axs[4].legend()
-    axs[4].grid(True)
+    fig.add_trace(go.Scatter(x=samples, y=data['Torque'], name='Torque'), row=5, col=1)
 
-    plt.tight_layout()
-    plt.show()
+    # Update layout
+    fig.update_layout(height=1200, width=1700, title_text="Actuator Data Visualization")
+    fig.update_xaxes(title_text="Samples", row=5, col=1)
+    fig.update_yaxes(title_text="Position", row=1, col=1)
+    fig.update_yaxes(title_text="Velocity", row=2, col=1)
+    fig.update_yaxes(title_text="Acceleration", row=3, col=1)
+    fig.update_yaxes(title_text="Error", row=4, col=1)
+    fig.update_yaxes(title_text="Torque", row=5, col=1)
+
+    # Show the plot
+    fig.show()
+
 
 def main():
     # Load the data
-    data = load_data('../data/normal1.txt')
+    data = load_data('../data/normal2+normal3+contact1.txt')
     
     # Plot the data
     plot_data(data)

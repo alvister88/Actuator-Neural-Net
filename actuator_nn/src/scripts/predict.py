@@ -22,11 +22,12 @@ def prepare_sequence_data(position_errors, velocities, torques, sequence_length=
         y.append(torques[i+sequence_length-1])
     return np.array(X), np.array(y)
 
-def load_model(model_path, run_device=None, dropout_rate=0.2):
+def load_model(model_path, run_device=None, dropout_rate=0.1):
     if run_device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device(run_device)
+    
     # Print whether using GPU or CPU
     if device.type == 'cuda':
         print(f"Using GPU: {torch.cuda.get_device_name(0)}")
@@ -34,7 +35,11 @@ def load_model(model_path, run_device=None, dropout_rate=0.2):
         print("Using CPU")
     
     model = ActuatorNet(dropout_rate=dropout_rate)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    # Load only the model weights
+    state_dict = torch.load(model_path, map_location=device, weights_only=True)
+    model.load_state_dict(state_dict)
+    
     model.to(device)
     model.eval()
     return model, device
@@ -112,14 +117,14 @@ def evaluate_model(model, X, y, position_errors, velocities, torques, device):
     for i, annotation in enumerate(annotations):
         fig.add_annotation(
             xref="paper", yref="paper",
-            x=1.10, y=0.50 - i*0.04,  # Adjust vertical spacing between annotations
+            x=1.11, y=0.48 - i*0.04,  # Adjust vertical spacing between annotations
             text=annotation,
             showarrow=False,
             font=dict(size=11),
             align="left",
         )
 
-    fig.update_layout(height=800, title_text='Data Visualization', showlegend=True)
+    fig.update_layout(height=1200, title_text='Data Visualization', showlegend=True)
     fig.show()
 
     return predictions
