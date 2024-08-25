@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import wandb
+import time
 
 class ActuatorNetTrainer:
     @staticmethod
@@ -19,9 +20,25 @@ class ActuatorNetTrainer:
     @staticmethod
     def train_model(net, position_errors, velocities, torques, lri=0.001, lrf=0.0001, batch_size=32, num_epochs=1000, 
                     save_path='actuator_model.pt', project_name='actuator-net-training', run_name='actuator-net-run'):
-        # Set device to GPU if available
+        # Ensure unique save path
+        base_save_path = save_path.rsplit('.', 1)[0]
+        extension = save_path.rsplit('.', 1)[1] if '.' in save_path else ''
+        counter = 1
+        while os.path.exists(save_path):
+            save_path = f"{base_save_path}_{counter}.{extension}"
+            counter += 1
+
+        # Set device to GPU if available, otherwise use CPU
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        net.to(device)  # Move model to GPU
+
+        # Move model to the selected device
+        net.to(device)
+
+        # Print whether using GPU or CPU
+        if device.type == 'cuda':
+            print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            print("Using CPU")
 
         criterion = nn.MSELoss()
         optimizer = optim.Adam(net.parameters(), lr=lri)
@@ -32,6 +49,7 @@ class ActuatorNetTrainer:
             "learning_rate_final": lrf,
             "batch_size": batch_size,
             "num_epochs": num_epochs,
+            "save_path": save_path,
         })
 
         # Learning rate scheduler
@@ -44,7 +62,7 @@ class ActuatorNetTrainer:
         train_split = int(0.8 * len(X))
         val_split = int(0.9 * len(X))
         
-        X_train = torch.FloatTensor(X[:train_split]).to(device)  # Move data to GPU
+        X_train = torch.FloatTensor(X[:train_split]).to(device)
         y_train = torch.FloatTensor(y[:train_split]).to(device)
         X_val = torch.FloatTensor(X[train_split:val_split]).to(device)
         y_val = torch.FloatTensor(y[train_split:val_split]).to(device)
@@ -55,8 +73,10 @@ class ActuatorNetTrainer:
         val_losses = []
         learning_rates = []
         best_val_loss = float('inf')
+        total_train_time = 0
 
         for epoch in range(num_epochs):
+            epoch_start_time = time.time()
             net.train()
             epoch_loss = 0
             for i in range(0, len(X_train), batch_size):
@@ -81,12 +101,18 @@ class ActuatorNetTrainer:
                 val_loss = criterion(val_outputs, y_val.unsqueeze(1)).item()
                 val_losses.append(val_loss)
 
+            epoch_end_time = time.time()
+            epoch_duration = epoch_end_time - epoch_start_time
+            total_train_time += epoch_duration
+
             # Log metrics to W&B
             wandb.log({
                 "Train Loss": epoch_loss,
                 "Val Loss": val_loss,
                 "Learning Rate": scheduler.get_last_lr()[0],
-                "Epoch": epoch + 1
+                "Epoch": epoch + 1,
+                "Epoch Duration (seconds)": epoch_duration,
+                "Total Training Time (seconds)": total_train_time
             })
 
             # Save the best model
@@ -95,13 +121,18 @@ class ActuatorNetTrainer:
                 torch.save(net.state_dict(), save_path)
                 wandb.run.summary["Best Val Loss"] = best_val_loss
                 wandb.save(os.path.basename(save_path))  # Save model checkpoint to W&B using basename
-                print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f} (Best - Saved)')
+                print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss:.4f}, '
+                      f'LR: {scheduler.get_last_lr()[0]:.6f} (Best - Saved to {save_path})')
             elif (epoch + 1) % 50 == 0:
-                print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}')
+                print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss:.4f}, '
+                      f'LR: {scheduler.get_last_lr()[0]:.6f}')
 
             # Step the scheduler
             scheduler.step()
             learning_rates.append(scheduler.get_last_lr()[0])
+
+        # Log final training time
+        wandb.run.summary["Total Training Time (seconds)"] = total_train_time
 
         # Close W&B run
         wandb.finish()
@@ -109,9 +140,9 @@ class ActuatorNetTrainer:
         return net, X_test, y_test
 
     @staticmethod
-    def load_model(net, load_path='actuator_model.pt'):
+    def load_model(net, run_device='cpu', load_path='actuator_model.pt'):
         # Load model weights
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = run_device
         net.to(device)  # Move model to GPU
 
         if os.path.exists(load_path):
@@ -124,20 +155,24 @@ class ActuatorNetTrainer:
     @staticmethod
     def evaluate_model(net, X_test, y_test, position_errors, velocities, torques):
         # Evaluate model
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = 'cpu'
+        net.to(device)
         net.eval()
 
         with torch.no_grad():
-            predictions = net(X_test).cpu().numpy().flatten()  # Move predictions back to CPU for numpy operations
+            predictions = net(X_test).cpu().numpy().flatten()  # Move predictions to CPU before converting to numpy
+
+        # Move y_test to CPU and convert to numpy
+        y_test_np = y_test.cpu().numpy()
 
         # Calculate RMS error
-        rms_error = np.sqrt(np.mean((predictions - y_test.cpu().numpy()) ** 2))
+        rms_error = np.sqrt(np.mean((predictions - y_test_np) ** 2))
         print(f'Test RMS Error: {rms_error:.3f} N·m')
 
         # Plot predictions vs actual
         plt.figure(figsize=(10, 5))
-        plt.scatter(y_test.cpu().numpy(), predictions, alpha=0.5)  # Move y_test back to CPU for plotting
-        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+        plt.scatter(y_test_np, predictions, alpha=0.5)
+        plt.plot([y_test_np.min(), y_test_np.max()], [y_test_np.min(), y_test_np.max()], 'r--', lw=2)
         plt.xlabel('Actual Torque (N·m)')
         plt.ylabel('Predicted Torque (N·m)')
         plt.title('Actuator Network Predictions vs Actual Torque (Test Set)')
@@ -159,12 +194,12 @@ class ActuatorNetTrainer:
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(y_test.cpu().numpy(), label='Actual Torque')
+        plt.plot(y_test_np, label='Actual Torque')
         plt.plot(predictions, label='Predicted Torque')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(y_test.cpu().numpy() - predictions, label='Prediction Error')
+        plt.plot(y_test_np - predictions, label='Prediction Error')
         plt.legend()
 
         plt.tight_layout()

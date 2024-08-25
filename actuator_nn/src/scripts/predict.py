@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from ActuatorNet import ActuatorNet  # Ensure this import works with your file structure
+from ActuatorNet import ActuatorNet
 from ActuatorNetTrainer import ActuatorNetTrainer
+import time
 
 def load_data(file_path):
     data = pd.read_csv(file_path, delimiter=',')
@@ -21,15 +22,37 @@ def prepare_sequence_data(position_errors, velocities, torques, sequence_length=
         y.append(torques[i+sequence_length-1])
     return np.array(X), np.array(y)
 
-def load_model(model_path, dropout_rate=0.2):
+def load_model(model_path, run_device=None, dropout_rate=0.2):
+    if run_device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(run_device)
+    # Print whether using GPU or CPU
+    if device.type == 'cuda':
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        print("Using CPU")
+    
     model = ActuatorNet(dropout_rate=dropout_rate)
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
     model.eval()
-    return model
+    return model, device
 
-def evaluate_model(model, X, y, position_errors, velocities, torques):
+def evaluate_model(model, X, y, position_errors, velocities, torques, device):
+    model.eval()
+    X_tensor = torch.FloatTensor(X).to(device)
+    
+    start_time = time.time()
     with torch.no_grad():
-        predictions = model(torch.FloatTensor(X)).numpy().flatten()
+        predictions = model(X_tensor).cpu().numpy().flatten()
+    end_time = time.time()
+    
+    total_inference_time = 1000 *(end_time - start_time) 
+    average_inference_time = 1000 * (total_inference_time / len(X)) 
+    
+    print(f'Total inference time: {total_inference_time:.4f} ms')
+    print(f'Average inference time per sample: {average_inference_time:.6f} us')
 
     # Calculate RMS error
     rms_error = np.sqrt(np.mean((predictions - y) ** 2))
@@ -50,11 +73,10 @@ def evaluate_model(model, X, y, position_errors, velocities, torques):
         title='Actuator Network Predictions vs Actual Torque',
         xaxis_title='Actual Torque (N·m)',
         yaxis_title='Predicted Torque (N·m)',
-        yaxis=dict(tickformat=".2f")  # Format the y-axis to show more decimal places for clarity
+        yaxis=dict(tickformat=".2f")
     )
 
-    # Adding horizontal lines at specific intervals
-    for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):  # Adjust the interval as needed
+    for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):
         fig.add_hline(y=i, line_dash="dash", line_color="gray")
 
     fig.show()
@@ -63,10 +85,10 @@ def evaluate_model(model, X, y, position_errors, velocities, torques):
     fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.01)
 
     fig.add_trace(go.Scatter(y=position_errors[-len(y):], mode='lines', name='Error'), row=1, col=1)
-    fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5)  # Specify units if known
+    fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5)
 
     fig.add_trace(go.Scatter(y=velocities[-len(y):], mode='lines', name='Velocity'), row=2, col=1)
-    fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)  # Specify units if known
+    fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)
 
     fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(dash='dot')), row=3, col=1)
     fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque'), row=3, col=1)
@@ -75,8 +97,7 @@ def evaluate_model(model, X, y, position_errors, velocities, torques):
     fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
     fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.1)
 
-    # Adding horizontal lines to the subplots
-    for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):  # Adjust the interval as needed
+    for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
         fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
 
     fig.update_layout(height=800, title_text='Data Visualization', showlegend=True)
@@ -93,11 +114,11 @@ def main():
     X, y = prepare_sequence_data(position_errors, velocities, torques)
 
     # Load the trained model
-    model_path = '../weights/best_actuator_model6.pt'  # Update this path as needed
-    model = load_model(model_path)
+    model_path = '../weights/best_actuator_model7.pt'  # Update this path as needed
+    model, device = load_model(run_device='cpu', model_path=model_path)
     
     # Evaluate the model
-    evaluate_model(model, X, y, position_errors, velocities, torques)
+    evaluate_model(model, X, y, position_errors, velocities, torques, device)
 
 if __name__ == "__main__":
     main()

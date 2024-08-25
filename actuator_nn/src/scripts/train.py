@@ -15,19 +15,19 @@ def main():
     # Load data
     position_errors, velocities, torques = load_data('../data/normal2+normal3+contact1.txt')
 
-    path = '../weights/best_actuator_model6.pt'
+    path = '../weights/best_actuator_model8.pt'
 
     # Create the model
     model = ActuatorNet(dropout_rate=0.2)
 
     # Set Wandb params
     project_name = 'actuator-net-training'
-    run_name = 'actuator-net-6'
+    run_name = 'actuator-net-8'
 
     # Train the model and get test data
     trained_model, X_test, y_test = ActuatorNetTrainer.train_model(
         model, position_errors, velocities, torques, 
-        lri=0.005, lrf=0.0005, batch_size=32, num_epochs=1000, 
+        lri=0.004, lrf=0.0004, batch_size=32, num_epochs=1000, 
         save_path=path, project_name=project_name, run_name=run_name 
     )
 
