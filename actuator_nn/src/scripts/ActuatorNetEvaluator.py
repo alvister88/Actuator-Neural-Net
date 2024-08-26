@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from ActuatorNet import ActuatorNet
+from ActuatorNet import ActuatorNet, HISTORY_SIZE
 import time
 
 class ActuatorNetEvaluator:
@@ -17,7 +17,7 @@ class ActuatorNetEvaluator:
         torques = data['Torque'].values
         return position_errors, velocities, torques
     
-    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=5):
+    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=HISTORY_SIZE):
         X, y = [], []
         for i in range(len(torques) - sequence_length + 1):
             X.append(np.column_stack((position_errors[i:i+sequence_length], 
@@ -76,7 +76,13 @@ class ActuatorNetEvaluator:
         self.plot_predictions_vs_actual(y, predictions)
         self.plot_data_visualization(y, predictions, position_errors, velocities, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
 
-        return predictions
+        # Return the evaluation metrics
+        return {
+            'total_inference_time': total_inference_time,
+            'average_inference_time': average_inference_time,
+            'rms_error': rms_error,
+            'percentage_accuracy': percentage_accuracy
+        }
 
     def plot_predictions_vs_actual(self, y, predictions):
         fig = go.Figure()

@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 
+# GLOBAL VARIABLES
+HISTORY_SIZE = 5
+INPUT_SIZE = 2 * HISTORY_SIZE
+
 class ActuatorNet(nn.Module):
     def __init__(self, dropout_rate=0.2):
         super(ActuatorNet, self).__init__()
-        self.fc1 = nn.Linear(10, 64)
+        self.fc1 = nn.Linear(INPUT_SIZE, 64)
         self.fc2 = nn.Linear(64, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, 32)

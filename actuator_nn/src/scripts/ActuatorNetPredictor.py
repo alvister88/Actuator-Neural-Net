@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 from collections import deque
-from ActuatorNet import ActuatorNet  # Make sure this import works with your project structure
+from ActuatorNet import ActuatorNet, HISTORY_SIZE  # Make sure this import works with your project structure
 
 class ActuatorNetPredictor:
-    def __init__(self, model_path, sequence_length=3, device=None):
+    def __init__(self, model_path, sequence_length=HISTORY_SIZE, device=None):
         self.sequence_length = sequence_length
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if device is None else device
         self.model = self.load_model(model_path)
@@ -45,7 +45,7 @@ class ActuatorNetPredictor:
 # Example usage
 def main():
     model_path = '../weights/best_actuator_model12.pt'  # Update this path
-    predictor = ActuatorNetPredictor(model_path, sequence_length=5)
+    predictor = ActuatorNetPredictor(model_path, sequence_length=3)
 
     # Simulating real-time data input
     sample_data = [

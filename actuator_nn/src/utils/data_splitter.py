@@ -23,14 +23,20 @@ def split_data(input_file, output_dir, train_ratio=0.9, chunk_size=500, number=N
     val_file = os.path.join(output_dir, f'validation_data{suffix}.txt')
     
     # First pass: count total lines
-    total_lines = sum(1 for _ in open(input_file, 'r'))
-    
-    train_lines = int(total_lines * train_ratio)
-    val_lines = total_lines - train_lines
+    with open(input_file, 'r') as f:
+        total_lines = sum(1 for _ in f)
+
+    train_lines = int((total_lines - 1) * train_ratio)  # Subtract 1 to account for header
+    val_lines = total_lines - train_lines - 1  # Subtract 1 for header
     
     with open(input_file, 'r') as infile, \
          open(train_file, 'w') as train_outfile, \
          open(val_file, 'w') as val_outfile:
+        
+        # Read and write the header to both files
+        header = infile.readline()
+        train_outfile.write(header)
+        val_outfile.write(header)
         
         lines_written = 0
         for chunk in iter(lambda: list(islice(infile, chunk_size)), []):

@@ -9,7 +9,7 @@ import os
 import wandb
 import time
 import pandas as pd
-from ActuatorNet import ActuatorNet
+from ActuatorNet import ActuatorNet, HISTORY_SIZE
 
 class ActuatorNetTrainer:
     def __init__(self, net, device=None):
@@ -24,7 +24,7 @@ class ActuatorNetTrainer:
         torques = data['Torque'].values
         return position_errors, velocities, torques
     
-    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=5):
+    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=HISTORY_SIZE):
         X, y = [], []
         for i in range(len(torques) - sequence_length + 1):
             X.append(np.column_stack((position_errors[i:i+sequence_length], 
