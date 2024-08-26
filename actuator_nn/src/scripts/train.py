@@ -7,28 +7,30 @@ import wandb
 
 def main():
 
-    model_path = '../weights/best_actuator_model16.pt'
-    data_path = '../data/normal2+normal3+contact1.txt'
+    model_path = '../weights/best_actuator_model19.pt'
+    train_data = '../data/train_data2.txt'
+    validation_data = '../data/validation_data2.txt'
 
     # Create the model
-    model = ActuatorNet(dropout_rate=0.08)
+    model = ActuatorNet(dropout_rate=0.1)
+    # Create the trainer
     trainer = ActuatorNetTrainer(model, device='cuda')
 
     # Set Wandb params
     project_name = 'actuator-net-training'
-    run_name = 'actuator-net-16'
+    run_name = 'actuator-net-19'
     entity_name = 'alvister88'
 
     
     # Train the model and get test data
-    trained_model, X_test, y_test = trainer.train_model(
-        data_path=data_path, 
-        lri=0.001, lrf=0.00008, batch_size=32, num_epochs=400, weight_decay=0.01, 
+    trained_model = trainer.train_model(
+        train_data_path=train_data, val_data_path=validation_data, 
+        lri=0.001, lrf=0.0001, batch_size=32, patience=100, num_epochs=800, weight_decay=0.01, 
         save_path=model_path, entity_name=entity_name, project_name=project_name, run_name=run_name 
     )
 
     # Evaluate the model after training
-    eval_data_path = '../data/contact1.txt'  # Update this path as needed
+    eval_data_path = '../data/normal1.txt'  # Update this path as needed
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
     

@@ -17,7 +17,7 @@ class ActuatorNetEvaluator:
         torques = data['Torque'].values
         return position_errors, velocities, torques
     
-    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=3):
+    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=5):
         X, y = [], []
         for i in range(len(torques) - sequence_length + 1):
             X.append(np.column_stack((position_errors[i:i+sequence_length], 

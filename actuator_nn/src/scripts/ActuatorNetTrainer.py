@@ -24,7 +24,7 @@ class ActuatorNetTrainer:
         torques = data['Torque'].values
         return position_errors, velocities, torques
     
-    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=3):
+    def prepare_sequence_data(self, position_errors, velocities, torques, sequence_length=5):
         X, y = [], []
         for i in range(len(torques) - sequence_length + 1):
             X.append(np.column_stack((position_errors[i:i+sequence_length], 
@@ -37,20 +37,26 @@ class ActuatorNetTrainer:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device(device)
-            
+
         if device.type == 'cuda':
             print(f"Using GPU: {torch.cuda.get_device_name(0)}")
         else:
             print("Using CPU")
         return device
 
-    def prepare_data(self, position_errors, velocities, torques):
-        X, y = self.prepare_sequence_data(position_errors, velocities, torques)
-        train_split, val_split = int(0.8 * len(X)), int(0.9 * len(X))
-        X_train, y_train = torch.FloatTensor(X[:train_split]).to(self.device), torch.FloatTensor(y[:train_split]).to(self.device)
-        X_val, y_val = torch.FloatTensor(X[train_split:val_split]).to(self.device), torch.FloatTensor(y[train_split:val_split]).to(self.device)
-        X_test, y_test = torch.FloatTensor(X[val_split:]).to(self.device), torch.FloatTensor(y[val_split:]).to(self.device)
-        return X_train, y_train, X_val, y_val, X_test, y_test
+    def prepare_data(self, train_data_path, val_data_path):
+        train_position_errors, train_velocities, train_torques = self.load_data(train_data_path)
+        val_position_errors, val_velocities, val_torques = self.load_data(val_data_path)
+        
+        X_train, y_train = self.prepare_sequence_data(train_position_errors, train_velocities, train_torques)
+        X_val, y_val = self.prepare_sequence_data(val_position_errors, val_velocities, val_torques)
+        
+        X_train = torch.FloatTensor(X_train).to(self.device)
+        y_train = torch.FloatTensor(y_train).to(self.device)
+        X_val = torch.FloatTensor(X_val).to(self.device)
+        y_val = torch.FloatTensor(y_val).to(self.device)
+        
+        return X_train, y_train, X_val, y_val
 
     def setup_training(self, lri, lrf, weight_decay, num_epochs):
         criterion = nn.MSELoss()
@@ -111,14 +117,13 @@ class ActuatorNetTrainer:
             counter += 1
         return save_path
 
-    def train_model(self, data_path='../data/normal1', lri=0.001, lrf=0.0001, batch_size=32, 
+    def train_model(self, train_data_path, val_data_path, 
+                    lri=0.001, lrf=0.0001, batch_size=32, patience=50,
                     weight_decay=0.01, num_epochs=1000, save_path='actuator_model.pt', 
-                    entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-run'):
+                    entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-run',):  
         
         save_path = self.ensure_unique_save_path(save_path)
-        position_errors, velocities, torques = self.load_data(data_path)
-
-        X_train, y_train, X_val, y_val, X_test, y_test = self.prepare_data(position_errors, velocities, torques)
+        X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
         criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs)
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
@@ -127,11 +132,13 @@ class ActuatorNetTrainer:
             "batch_size": batch_size,
             "num_epochs": num_epochs,
             "save_path": save_path,
-            "weight_decay": weight_decay
+            "weight_decay": weight_decay,
+            "patience": patience  # Add patience to wandb config
         })
 
         total_train_time = 0
         best_val_loss = float('inf')
+        epochs_without_improvement = 0  # Counter for early stopping
 
         for epoch in range(num_epochs):
             epoch_start_time = time.time()
@@ -145,11 +152,19 @@ class ActuatorNetTrainer:
             is_best = self.save_best_model(val_loss, save_path)
             if is_best:
                 best_val_loss = val_loss
+                epochs_without_improvement = 0  # Reset counter
+            else:
+                epochs_without_improvement += 1  # Increment counter
 
             self.log_metrics(epoch, num_epochs, train_loss, val_loss, scheduler.get_last_lr()[0], 
                              epoch_duration, total_train_time, is_best, save_path)
 
             scheduler.step()
 
+            # Early stopping check
+            if epochs_without_improvement >= patience:
+                print(f"Early stopping triggered after {patience} epochs without improvement.")
+                break
+
         wandb.finish()
-        return self.net, X_test, y_test
+        return self.net

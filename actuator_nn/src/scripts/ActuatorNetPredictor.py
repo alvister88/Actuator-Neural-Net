@@ -45,7 +45,7 @@ class ActuatorNetPredictor:
 # Example usage
 def main():
     model_path = '../weights/best_actuator_model12.pt'  # Update this path
-    predictor = ActuatorNetPredictor(model_path)
+    predictor = ActuatorNetPredictor(model_path, sequence_length=5)
 
     # Simulating real-time data input
     sample_data = [
