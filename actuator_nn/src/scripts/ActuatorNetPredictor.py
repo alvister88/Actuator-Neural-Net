@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from collections import deque
-from ActuatorNet import ActuatorNet, HISTORY_SIZE  # Make sure this import works with your project structure
+from ActuatorNet import ActuatorNet, HISTORY_SIZE  
 
 class ActuatorNetPredictor:
     def __init__(self, model_path, sequence_length=HISTORY_SIZE, device=None):
