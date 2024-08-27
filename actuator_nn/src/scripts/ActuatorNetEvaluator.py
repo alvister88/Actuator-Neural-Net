@@ -7,8 +7,8 @@ from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
 import time
 
 class ActuatorNetEvaluator:
-    def __init__(self, model_path, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, run_device=None):
-        self.model, self.device = self.load_model(model_path, hidden_size, num_layers, dropout_rate, run_device)
+    def __init__(self, model_path, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, run_device=None):
+        self.model, self.device = self.load_model(model_path, input_size,hidden_size, num_layers, dropout_rate, run_device)
 
     def load_data(self, file_path):
         data = pd.read_csv(file_path, delimiter=',')
@@ -25,7 +25,7 @@ class ActuatorNetEvaluator:
             y.append(torques[i+HISTORY_SIZE-1])
         return np.array(X), np.array(y)
 
-    def load_model(self, model_path, hidden_size, num_layers, dropout_rate, run_device=None):
+    def load_model(self, model_path, input_size, hidden_size, num_layers, dropout_rate, run_device=None):
         if run_device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
@@ -36,9 +36,9 @@ class ActuatorNetEvaluator:
         else:
             print("Using CPU")
 
-        model = ActuatorNet(hidden_size, num_layers, dropout_rate)
+        model = ActuatorNet(input_size, hidden_size, num_layers, dropout_rate)
 
-        state_dict = torch.load(model_path, map_location=device)
+        state_dict = torch.load(model_path, map_location=device, weights_only=True)
         model.load_state_dict(state_dict)
 
         model.to(device)

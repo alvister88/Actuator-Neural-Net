@@ -9,9 +9,9 @@ import time
 from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
 
 class ActuatorNetTrainer:
-    def __init__(self, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, device=None):
+    def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, device=None):
         self.device = self.setup_device(device)
-        self.net = ActuatorNet(hidden_size, num_layers, dropout_rate).to(self.device)
+        self.net = ActuatorNet(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout_rate=dropout_rate).to(self.device)
 
     def setup_device(self, device):
         if device is None:
