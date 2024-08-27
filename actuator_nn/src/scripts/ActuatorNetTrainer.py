@@ -6,10 +6,10 @@ import pandas as pd
 import os
 import wandb
 import time
-from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE
+from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
 
 class ActuatorNetTrainer:
-    def __init__(self, hidden_size=64, num_layers=2, dropout_rate=0.2, device=None):
+    def __init__(self, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, device=None):
         self.device = self.setup_device(device)
         self.net = ActuatorNet(hidden_size, num_layers, dropout_rate).to(self.device)
 
@@ -166,3 +166,8 @@ class ActuatorNetTrainer:
 
         wandb.finish()
         return self.net
+
+# Example usage
+if __name__ == "__main__":
+    trainer = ActuatorNetTrainer()
+    trainer.train_model('path/to/train_data.csv', 'path/to/val_data.csv')

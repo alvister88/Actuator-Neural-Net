@@ -12,7 +12,7 @@ import time
 def main():
     # Load the dataset
     data_path = '../data/normal2+normal3+contact1.txt'  # Update this path as needed
-    model_path = '../weights/best_actuator_model28.pt'  # Update this path as needed
+    model_path = '../weights/best_actuator_gru_model3.pt'  # Update this path as needed
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
     
