@@ -44,7 +44,7 @@ def plot_data(data):
 
 def main():
     # Load the data
-    data = load_data('../data/normal2+normal3+contact1.txt')
+    data = load_data('../data/gains2/normal4.txt')
     
     # Plot the data
     plot_data(data)
