@@ -2,14 +2,16 @@ import torch
 import torch.nn as nn
 
 # GLOBAL VARIABLES
-HISTORY_SIZE = 8
+HISTORY_SIZE = 12
 INPUT_SIZE = 2  # Position error and velocity
-NUM_LAYERS = 2
+NUM_LAYERS = 3
 
 class ActuatorNet(nn.Module):
     def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2):
         super(ActuatorNet, self).__init__()
-        
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
         self.gru = nn.GRU(
             input_size=input_size,
             hidden_size=hidden_size,
@@ -23,7 +25,7 @@ class ActuatorNet(nn.Module):
     
     def forward(self, x):
         # Reshape input: (batch_size, INPUT_SIZE * HISTORY_SIZE) -> (batch_size, HISTORY_SIZE, INPUT_SIZE)
-        x = x.view(-1, HISTORY_SIZE, INPUT_SIZE)
+        x = x.view(-1, self.hidden_size, self.input_size)
         
         # Pass through GRU
         out, _ = self.gru(x)

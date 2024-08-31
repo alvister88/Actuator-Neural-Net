@@ -5,10 +5,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
 import time
+import os
 
 class ActuatorNetEvaluator:
-    def __init__(self, model_path, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, run_device=None):
-        self.model, self.device = self.load_model(model_path, input_size,hidden_size, num_layers, dropout_rate, run_device)
+    def __init__(self, model_path, run_device=None, input_size=2):
+        self.model, self.device, self.hidden_size, self.num_layers = self.load_model(model_path, run_device)
+        self.input_size = input_size
+        self.history_size = self.hidden_size  # Assuming HISTORY_SIZE is the same as hidden_size
+        self.model_name = os.path.basename(model_path)
 
     def load_data(self, file_path):
         data = pd.read_csv(file_path, delimiter=',')
@@ -19,13 +23,13 @@ class ActuatorNetEvaluator:
 
     def prepare_sequence_data(self, position_errors, velocities, torques):
         X, y = [], []
-        for i in range(len(torques) - HISTORY_SIZE + 1):
-            X.append(np.column_stack((position_errors[i:i+HISTORY_SIZE], 
-                                      velocities[i:i+HISTORY_SIZE])))
-            y.append(torques[i+HISTORY_SIZE-1])
+        for i in range(len(torques) - self.history_size + 1):
+            X.append(np.column_stack((position_errors[i:i+self.history_size], 
+                                      velocities[i:i+self.history_size])))
+            y.append(torques[i+self.history_size-1])
         return np.array(X), np.array(y)
 
-    def load_model(self, model_path, input_size, hidden_size, num_layers, dropout_rate, run_device=None):
+    def load_model(self, model_path, run_device=None):
         if run_device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
@@ -36,14 +40,19 @@ class ActuatorNetEvaluator:
         else:
             print("Using CPU")
 
-        model = ActuatorNet(input_size, hidden_size, num_layers, dropout_rate)
-
         state_dict = torch.load(model_path, map_location=device, weights_only=True)
+        
+        # Determine the hidden size and number of layers from the state dict
+        hidden_size = state_dict['gru.weight_ih_l0'].size(0) // 3
+        num_layers = sum(1 for key in state_dict.keys() if key.startswith('gru.weight_ih_l'))
+        
+        # Create the model with the correct architecture
+        model = ActuatorNet(hidden_size=hidden_size, num_layers=num_layers, dropout_rate=0.1)
         model.load_state_dict(state_dict)
-
         model.to(device)
         model.eval()
-        return model, device
+                
+        return model, device, hidden_size, num_layers
 
     def evaluate_model(self, X, y, position_errors, velocities, torques):
         self.model.eval()
@@ -82,7 +91,7 @@ class ActuatorNetEvaluator:
         fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual'))
         fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')))
         fig.update_layout(
-            title='Actuator Network Predictions vs Actual Torque',
+            title=f'Actuator Network Predictions vs Actual Torque - Model: {self.model_name}',
             xaxis_title='Actual Torque (N·m)',
             yaxis_title='Predicted Torque (N·m)',
             yaxis=dict(tickformat=".2f")
@@ -107,12 +116,13 @@ class ActuatorNetEvaluator:
         fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=0.25)
 
         fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.1)
+        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.2)
 
         for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
             fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
 
         annotations = [
+            f"Model: {self.model_name}",
             f"Device: {self.device.type}",
             f"Test RMS Error: {rms_error:.3f} N·m",
             f"Accuracy: {percentage_accuracy:.2f}%",
@@ -130,7 +140,7 @@ class ActuatorNetEvaluator:
                 align="left",
             )
 
-        fig.update_layout(height=1200, title_text='Data Visualization', showlegend=True)
+        fig.update_layout(height=1200, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True)
         fig.show()
 
 def main():

@@ -7,11 +7,13 @@ import os
 import wandb
 import time
 from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
+import signal
 
 class ActuatorNetTrainer:
     def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, device=None):
         self.device = self.setup_device(device)
         self.net = ActuatorNet(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout_rate=dropout_rate).to(self.device)
+        self.stop_training = False
 
     def setup_device(self, device):
         if device is None:
@@ -113,6 +115,10 @@ class ActuatorNetTrainer:
             counter += 1
         return save_path
 
+    def handle_interrupt(self, signum, frame):
+        print("\nInterrupt received. Stopping training after this epoch...")
+        self.stop_training = True
+
     def train_model(self, train_data_path, val_data_path, 
                     lri=0.001, lrf=0.0001, batch_size=32, patience=50,
                     weight_decay=0.01, num_epochs=1000, save_path='actuator_model_gru.pt', 
@@ -139,7 +145,16 @@ class ActuatorNetTrainer:
         best_val_loss = float('inf')
         epochs_without_improvement = 0
 
+        # Set up the interrupt handler
+        signal.signal(signal.SIGINT, self.handle_interrupt)
+
+        print("Training started. Press Ctrl+C to stop training manually.")
+
         for epoch in range(num_epochs):
+            if self.stop_training:
+                print("Manual early stopping triggered.")
+                break
+
             epoch_start_time = time.time()
 
             train_loss = self.train_epoch(X_train, y_train, optimizer, criterion, batch_size)
