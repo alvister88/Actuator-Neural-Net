@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 # GLOBAL VARIABLES
-HISTORY_SIZE = 16
+HISTORY_SIZE = 24
 INPUT_SIZE = 2  # Position error and velocity
-NUM_LAYERS = 5
+NUM_LAYERS = 4
 
 class ActuatorNet(nn.Module):
     def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2):
