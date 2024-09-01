@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from torch.amp import autocast, GradScaler
 import numpy as np
 import pandas as pd
 import os
@@ -45,19 +43,18 @@ class ActuatorNetTrainer:
         return np.array(X), np.array(y)
 
     def prepare_data(self, train_data_path, val_data_path):
-        def process_file(file_path):
-            data = pd.read_csv(file_path, usecols=['Error', 'Velocity', 'Torque'])
-            X = np.lib.stride_tricks.sliding_window_view(data[['Error', 'Velocity']].values, (HISTORY_SIZE, 2)).reshape(-1, HISTORY_SIZE, 2)
-            y = data['Torque'].values[HISTORY_SIZE-1:]
-            return X, y
+        train_position_errors, train_velocities, train_torques = self.load_data(train_data_path)
+        val_position_errors, val_velocities, val_torques = self.load_data(val_data_path)
 
-        X_train, y_train = process_file(train_data_path)
-        X_val, y_val = process_file(val_data_path)
+        X_train, y_train = self.prepare_sequence_data(train_position_errors, train_velocities, train_torques)
+        X_val, y_val = self.prepare_sequence_data(val_position_errors, val_velocities, val_torques)
 
-        train_dataset = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(y_train))
-        val_dataset = TensorDataset(torch.FloatTensor(X_val), torch.FloatTensor(y_val))
+        X_train = torch.FloatTensor(X_train).to(self.device)
+        y_train = torch.FloatTensor(y_train).to(self.device)
+        X_val = torch.FloatTensor(X_val).to(self.device)
+        y_val = torch.FloatTensor(y_val).to(self.device)
 
-        return train_dataset, val_dataset
+        return X_train, y_train, X_val, y_val
 
     def setup_training(self, lri, lrf, weight_decay, num_epochs):
         criterion = nn.MSELoss()
@@ -66,40 +63,25 @@ class ActuatorNetTrainer:
             lr_lambda=lambda epoch: lrf / lri + (1 - epoch / num_epochs) * (1 - lrf / lri))
         return criterion, optimizer, scheduler
 
-    def train_epoch(self, train_loader, optimizer, criterion, scaler, accumulation_steps=4):
+    def train_epoch(self, X_train, y_train, optimizer, criterion, batch_size):
         self.net.train()
         train_loss = 0
-        for i, (batch_X, batch_y) in enumerate(train_loader):
-            batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-            
-            with autocast(device_type=self.device.type):
-                outputs = self.net(batch_X)
-                loss = criterion(outputs, batch_y.unsqueeze(1)) / accumulation_steps
+        for i in range(0, len(X_train), batch_size):
+            batch_X, batch_y = X_train[i:i+batch_size], y_train[i:i+batch_size]
+            optimizer.zero_grad()
+            outputs = self.net(batch_X)
+            loss = criterion(outputs, batch_y.unsqueeze(1))
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+        return train_loss / (len(X_train) // batch_size)
 
-            scaler.scale(loss).backward()
-
-            if (i + 1) % accumulation_steps == 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(self.net.parameters(), max_norm=1.0)
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad(set_to_none=True)
-
-            train_loss += loss.item() * accumulation_steps
-
-        return train_loss / len(train_loader)
-
-    def validate(self, val_loader, criterion):
+    def validate(self, X_val, y_val, criterion):
         self.net.eval()
-        val_loss = 0
         with torch.no_grad():
-            for batch_X, batch_y in val_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-                with autocast(device_type=self.device.type):
-                    outputs = self.net(batch_X)
-                    loss = criterion(outputs, batch_y.unsqueeze(1))
-                val_loss += loss.item()
-        return val_loss / len(val_loader)
+            val_outputs = self.net(X_val)
+            val_loss = criterion(val_outputs, y_val.unsqueeze(1)).item()
+        return val_loss
 
     def log_metrics(self, epoch, num_epochs, train_loss, val_loss, lr, epoch_duration, total_train_time, is_best, save_path):
         wandb.log({
@@ -143,12 +125,8 @@ class ActuatorNetTrainer:
                     entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-gru-run'):  
 
         save_path = self.ensure_unique_save_path(save_path)
-        train_dataset, val_dataset = self.prepare_data(train_data_path, val_data_path)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
-
+        X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
         criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs)
-        scaler = GradScaler(enabled=(self.device.type == 'cuda'))
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
             "learning_rate_initial": lri,
@@ -167,6 +145,7 @@ class ActuatorNetTrainer:
         best_val_loss = float('inf')
         epochs_without_improvement = 0
 
+        # Set up the interrupt handler
         signal.signal(signal.SIGINT, self.handle_interrupt)
 
         print("Training started. Press Ctrl+C to stop training manually.")
@@ -178,8 +157,8 @@ class ActuatorNetTrainer:
 
             epoch_start_time = time.time()
 
-            train_loss = self.train_epoch(train_loader, optimizer, criterion, scaler)
-            val_loss = self.validate(val_loader, criterion)
+            train_loss = self.train_epoch(X_train, y_train, optimizer, criterion, batch_size)
+            val_loss = self.validate(X_val, y_val, criterion)
 
             epoch_duration = time.time() - epoch_start_time
             total_train_time += epoch_duration
