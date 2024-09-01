@@ -2,3 +2,4 @@ GRU:
 - model29 --> current best model, generalizes the best to test, doesn't capture small details, not much torque ripple
 - model30 --> does not generalize as well, can capture torque ripple quite well
 - model 31 and 32 --> best models now, both very good (also super similar)
+- model 34 (history size 26, 4 layers) generalizes best to test data, might fit a bit worse for torque ripple
