@@ -1,0 +1,3 @@
+GRU:
+- model29 --> current best model, generalizes the best to test, doesn't capture small details, not much torque ripple
+- model30 --> does not generalize as well, can capture torque ripple quite well
