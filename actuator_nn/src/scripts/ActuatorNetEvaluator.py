@@ -116,7 +116,7 @@ class ActuatorNetEvaluator:
         fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=0.25)
 
         fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.2)
+        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.05)
 
         for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
             fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
