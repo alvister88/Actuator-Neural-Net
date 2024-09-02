@@ -28,10 +28,9 @@ class ActuatorNetEvaluator:
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
     def prepare_sequence_data(self, position_errors, velocities, torques):
-        # Normalize the data
+        # Normalize only the input data
         position_errors = self.normalize_data(position_errors, -MAX_ERROR, MAX_ERROR)
         velocities = self.normalize_data(velocities, -MAX_VELOCITY, MAX_VELOCITY)
-        torques = self.normalize_data(torques, -MAX_TORQUE, MAX_TORQUE)
 
         X, y = [], []
         for i in range(len(torques) - self.history_size + 1):
@@ -39,6 +38,7 @@ class ActuatorNetEvaluator:
                                       velocities[i:i+self.history_size])))
             y.append(torques[i+self.history_size-1])
         return np.array(X), np.array(y)
+
 
     def load_model(self, model_path, run_device=None):
         if run_device is None:
@@ -71,7 +71,8 @@ class ActuatorNetEvaluator:
 
         start_time = time.time()
         with torch.no_grad():
-            predictions = self.model(X_tensor).cpu().numpy().flatten()
+            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
+            predictions = self.denormalize_torque(normalized_predictions)
         end_time = time.time()
 
         total_inference_time = 1000 * (end_time - start_time) 
@@ -124,10 +125,10 @@ class ActuatorNetEvaluator:
 
         fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(dash='dot')), row=3, col=1)
         fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque'), row=3, col=1)
-        fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=2.5)
+        fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=5.0)
 
         fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=0.5)
+        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=1.0)
 
         for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
             fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)

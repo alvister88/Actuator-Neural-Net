@@ -9,9 +9,9 @@ import wandb
 def main():
     # Set paths
     model_path = '../weights/actuator_gruv2_model1.pt'
-    train_data = '../data/gains3/train_data_3.txt'
-    validation_data = '../data/gains3/validation_data_3.txt'
-    eval_data_path = '../data/gains3/test1.txt'
+    train_data = '../data/gains3/train_data_1.txt'
+    validation_data = '../data/gains3/validation_data_1.txt'
+    eval_data_path = '../data/gains3/test2.txt'
 
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,7 +23,7 @@ def main():
     trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.03, device=device)
 
     # Set Wandb params
-    project_name = 'actuator-net-training'
+    project_name = 'actuator-net-training-v2'
     run_name = 'actuator-net-gruv2-1'
     entity_name = 'alvister88'
 
