@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
+from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
 import time
 import os
 
@@ -21,7 +21,18 @@ class ActuatorNetEvaluator:
         torques = data['Torque'].values
         return position_errors, velocities, torques
 
+    def normalize_data(self, data, min_val, max_val):
+        return 2 * (data - min_val) / (max_val - min_val) - 1
+
+    def denormalize_torque(self, normalized_torque):
+        return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
+
     def prepare_sequence_data(self, position_errors, velocities, torques):
+        # Normalize the data
+        position_errors = self.normalize_data(position_errors, -MAX_ERROR, MAX_ERROR)
+        velocities = self.normalize_data(velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        torques = self.normalize_data(torques, -MAX_TORQUE, MAX_TORQUE)
+
         X, y = [], []
         for i in range(len(torques) - self.history_size + 1):
             X.append(np.column_stack((position_errors[i:i+self.history_size], 

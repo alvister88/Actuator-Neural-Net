@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from collections import deque
-from ActuatorNet import ActuatorNet, INPUT_SIZE
+from ActuatorNet import ActuatorNet, INPUT_SIZE, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
 
 class ActuatorNetPredictor:
     def __init__(self, model_path, device=None):
@@ -12,25 +12,28 @@ class ActuatorNetPredictor:
 
     def load_model(self, model_path):
         state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
-        
-        # Determine the hidden size and number of layers from the state dict
         hidden_size = state_dict['gru.weight_ih_l0'].size(0) // 3
         num_layers = sum(1 for key in state_dict.keys() if key.startswith('gru.weight_ih_l'))
-        
-        # Create the model with the correct architecture
         model = ActuatorNet(hidden_size=hidden_size, num_layers=num_layers, dropout_rate=0.1)
         model.load_state_dict(state_dict)
         model.to(self.device)
         model.eval()
-        
-        # Determine the history size (which should be equal to the hidden size in this case)
         history_size = hidden_size
-        
         return model, history_size
 
+    def normalize_data(self, data, min_val, max_val):
+        return 2 * (data - min_val) / (max_val - min_val) - 1
+
+    def denormalize_torque(self, normalized_torque):
+        return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
+
     def prepare_input(self, error, velocity):
-        self.error_buffer.append(error)
-        self.velocity_buffer.append(velocity)
+        # Normalize the input
+        normalized_error = self.normalize_data(error, -MAX_ERROR, MAX_ERROR)
+        normalized_velocity = self.normalize_data(velocity, -MAX_VELOCITY, MAX_VELOCITY)
+
+        self.error_buffer.append(normalized_error)
+        self.velocity_buffer.append(normalized_velocity)
 
         # Pad the buffers if they're not full
         padded_errors = list(self.error_buffer) + [0] * (self.history_size - len(self.error_buffer))
@@ -40,14 +43,14 @@ class ActuatorNetPredictor:
             np.array(padded_errors),
             np.array(padded_velocities)
         ))
-
         return torch.FloatTensor(input_data).unsqueeze(0).to(self.device)
 
     def predict(self, error, velocity):
         input_tensor = self.prepare_input(error, velocity)
         with torch.no_grad():
             prediction = self.model(input_tensor)
-        return prediction.item()
+        # Denormalize the prediction
+        return self.denormalize_torque(prediction.item())
 
 # Example usage
 def main():

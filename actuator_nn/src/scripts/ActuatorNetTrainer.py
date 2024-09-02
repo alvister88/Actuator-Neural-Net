@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import wandb
 import time
-from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS
+from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
 import signal
 
 class ActuatorNetTrainer:
@@ -41,10 +41,22 @@ class ActuatorNetTrainer:
                                       velocities[i:i+HISTORY_SIZE])))
             y.append(torques[i+HISTORY_SIZE-1])
         return np.array(X), np.array(y)
+    
+    def normalize_data(self, data, min_val, max_val):
+        return 2 * (data - min_val) / (max_val - min_val) - 1
 
     def prepare_data(self, train_data_path, val_data_path):
         train_position_errors, train_velocities, train_torques = self.load_data(train_data_path)
         val_position_errors, val_velocities, val_torques = self.load_data(val_data_path)
+
+        # Normalize the data
+        train_position_errors = self.normalize_data(train_position_errors, -MAX_ERROR, MAX_ERROR)
+        train_velocities = self.normalize_data(train_velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        train_torques = self.normalize_data(train_torques, -MAX_TORQUE, MAX_TORQUE)
+
+        val_position_errors = self.normalize_data(val_position_errors, -MAX_ERROR, MAX_ERROR)
+        val_velocities = self.normalize_data(val_velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        val_torques = self.normalize_data(val_torques, -MAX_TORQUE, MAX_TORQUE)
 
         X_train, y_train = self.prepare_sequence_data(train_position_errors, train_velocities, train_torques)
         X_val, y_val = self.prepare_sequence_data(val_position_errors, val_velocities, val_torques)
@@ -55,6 +67,9 @@ class ActuatorNetTrainer:
         y_val = torch.FloatTensor(y_val).to(self.device)
 
         return X_train, y_train, X_val, y_val
+
+    def denormalize_torque(self, normalized_torque):
+        return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
     def setup_training(self, lri, lrf, weight_decay, num_epochs):
         criterion = nn.MSELoss()

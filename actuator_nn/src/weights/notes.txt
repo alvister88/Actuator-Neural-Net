@@ -5,3 +5,6 @@ GRU:
 - model 34 (history size 26, 4 layers) generalizes best to test data, might fit a bit worse for torque ripple
 - model 36 generalizes well, but takes in larger history making it slower; not worth it
 - model 37 generalizes well and model torque ripple well
+-----I TROLLED, THE TORQUE MEASUREMENTS WERE OFF BY A FACTOR OF 10
+
+GRU2:
