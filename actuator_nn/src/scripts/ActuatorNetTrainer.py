@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import OneCycleLR 
 import numpy as np
 import pandas as pd
 import os
@@ -71,14 +72,20 @@ class ActuatorNetTrainer:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def setup_training(self, lri, lrf, weight_decay, num_epochs):
+    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch):
         criterion = nn.MSELoss()
         optimizer = optim.AdamW(self.net.parameters(), lr=lri, weight_decay=weight_decay)
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, 
-            lr_lambda=lambda epoch: lrf / lri + (1 - epoch / num_epochs) * (1 - lrf / lri))
+        scheduler = OneCycleLR(optimizer, 
+                               max_lr=lri,
+                               steps_per_epoch=steps_per_epoch,
+                               epochs=num_epochs,
+                               pct_start=0.2,
+                               anneal_strategy='cos',
+                               final_div_factor=lri/lrf,
+                               div_factor=25)
         return criterion, optimizer, scheduler
 
-    def train_epoch(self, X_train, y_train, optimizer, criterion, batch_size):
+    def train_epoch(self, X_train, y_train, optimizer, criterion, scheduler, batch_size):
         self.net.train()
         train_loss = 0
         for i in range(0, len(X_train), batch_size):
@@ -88,6 +95,7 @@ class ActuatorNetTrainer:
             loss = criterion(outputs, batch_y.unsqueeze(1))
             loss.backward()
             optimizer.step()
+            scheduler.step()  # Step the scheduler every batch
             train_loss += loss.item()
         return train_loss / (len(X_train) // batch_size)
 
@@ -135,16 +143,18 @@ class ActuatorNetTrainer:
         self.stop_training = True
 
     def train_model(self, train_data_path, val_data_path, 
-                    lri=0.001, lrf=0.0001, batch_size=32, patience=50,
+                    lri=0.01, lrf=0.001, batch_size=64, patience=100,
                     weight_decay=0.01, num_epochs=1000, save_path='actuator_model_gru.pt', 
                     entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-gru-run'):  
 
         save_path = self.ensure_unique_save_path(save_path)
         X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
-        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs)
+        
+        steps_per_epoch = len(X_train) // batch_size
+        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch)
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
-            "learning_rate_initial": lri,
+            "learning_rate_max": lri,
             "learning_rate_final": lrf,
             "batch_size": batch_size,
             "num_epochs": num_epochs,
@@ -172,7 +182,7 @@ class ActuatorNetTrainer:
 
             epoch_start_time = time.time()
 
-            train_loss = self.train_epoch(X_train, y_train, optimizer, criterion, batch_size)
+            train_loss = self.train_epoch(X_train, y_train, optimizer, criterion, scheduler, batch_size)
             val_loss = self.validate(X_val, y_val, criterion)
 
             epoch_duration = time.time() - epoch_start_time
@@ -185,10 +195,8 @@ class ActuatorNetTrainer:
             else:
                 epochs_without_improvement += 1
 
-            self.log_metrics(epoch, num_epochs, train_loss, val_loss, scheduler.get_last_lr()[0], 
+            self.log_metrics(epoch, num_epochs, train_loss, val_loss, optimizer.param_groups[0]['lr'], 
                              epoch_duration, total_train_time, is_best, save_path)
-
-            scheduler.step()
 
             if epochs_without_improvement >= patience:
                 print(f"Early stopping triggered after {patience} epochs without improvement.")

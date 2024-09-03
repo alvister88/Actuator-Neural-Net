@@ -4,7 +4,7 @@ import torch.nn as nn
 # GLOBAL VARIABLES
 HISTORY_SIZE = 24
 INPUT_SIZE = 2  # Position error and velocity
-NUM_LAYERS = 4
+NUM_LAYERS = 5
 
 '''Warning! Changing these will change all the models!'''
 # Data normalization parameters
