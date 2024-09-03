@@ -3,14 +3,14 @@ import os
 import random
 from itertools import islice
 
-def split_data(input_file, output_dir, train_ratio=0.9, chunk_size=500, number=None, randomize=True):
+def split_data(input_file, output_dir, train_ratio=0.9, chunk_size=3500, number=None, randomize=True):
     """
     Splits a large text file into training and validation sets, preserving chunks of sequential data.
     Args:
     input_file (str): Path to the input text file.
     output_dir (str): Directory to save the output files.
     train_ratio (float): Ratio of data to use for training (default: 0.9).
-    chunk_size (int): Number of lines to process at once and preserve as a sequential chunk (default: 500).
+    chunk_size (int): Number of lines to process at once and preserve as a sequential chunk (default: 3500).
     number (int): Optional number to append to output file names.
     randomize (bool): Whether to randomize the split or use a deterministic approach (default: True).
     """
@@ -62,11 +62,16 @@ def main():
     parser.add_argument("input_file", help="Path to the input text file")
     parser.add_argument("output_dir", help="Directory to save the output files")
     parser.add_argument("--train_ratio", type=float, default=0.9, help="Ratio of data to use for training (default: 0.9)")
-    parser.add_argument("--chunk_size", type=int, default=500, help="Number of lines to process at once and preserve as a sequential chunk (default: 500)")
+    parser.add_argument("--chunk_size", type=int, default=3500, help="Number of lines to process at once and preserve as a sequential chunk (default: 3500)")
     parser.add_argument("--number", type=int, help="Optional number to append to output file names")
     parser.add_argument("--no-randomize", action="store_false", dest="randomize", help="Use deterministic split instead of random (default: randomized)")
     parser.set_defaults(randomize=True)
     args = parser.parse_args()
+
+    # Check if chunk size has been changed
+    if args.chunk_size != 3500:
+        print("\033[93mWARNING: Chunk size has been changed from the default value of 3500.")
+        print("Please ensure you update the train chunk size in your training script accordingly.\033[0m")
 
     train_count, val_count = split_data(args.input_file, args.output_dir, args.train_ratio, args.chunk_size, args.number, args.randomize)
 
@@ -80,6 +85,7 @@ def main():
     print(f"Total lines: Training set: {train_count}, Validation set: {val_count}")
     print(f"Actual split ratio: {train_count / (train_count + val_count):.2f}")
     print(f"Split method: {'Randomized' if args.randomize else 'Deterministic'}")
+    print(f"Chunk size used: {args.chunk_size}")
 
 if __name__ == "__main__":
     main()
