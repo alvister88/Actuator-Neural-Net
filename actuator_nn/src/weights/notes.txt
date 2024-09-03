@@ -8,3 +8,4 @@ GRU:
 -----I TROLLED, THE TORQUE MEASUREMENTS WERE OFF BY A FACTOR OF 10
 
 GRU2:
+- model 3 not great for torque ripple
