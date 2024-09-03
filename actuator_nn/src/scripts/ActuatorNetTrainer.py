@@ -72,14 +72,14 @@ class ActuatorNetTrainer:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch):
+    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy='cos'):
         criterion = nn.MSELoss()
         optimizer = optim.AdamW(self.net.parameters(), lr=lri, weight_decay=weight_decay)
         scheduler = OneCycleLR(optimizer, 
                                max_lr=lri,
                                steps_per_epoch=steps_per_epoch,
                                epochs=num_epochs,
-                               pct_start=0.2,
+                               pct_start=pct_start,
                                anneal_strategy='cos',
                                final_div_factor=lri/lrf,
                                div_factor=25)
@@ -144,14 +144,34 @@ class ActuatorNetTrainer:
 
     def train_model(self, train_data_path, val_data_path, 
                     lri=0.01, lrf=0.001, batch_size=64, patience=100,
-                    weight_decay=0.01, num_epochs=1000, save_path='actuator_model_gru.pt', 
+                    weight_decay=0.01, num_epochs=1000, pct_start=0.2, anneal_strategy='cos', save_path='actuator_model_gru.pt', 
                     entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-gru-run'):  
+        """
+        Trains the actuator neural network model using the provided training and validation data.
 
+        Args:
+            train_data_path (str): Path to the training data file.
+            val_data_path (str): Path to the validation data file.
+            lri (float, optional): Initial learning rate. Defaults to 0.01.
+            lrf (float, optional): Final learning rate. Defaults to 0.001.
+            batch_size (int, optional): Batch size for training. Defaults to 64.
+            patience (int, optional): Number of epochs without improvement before early stopping. Defaults to 100.
+            weight_decay (float, optional): Weight decay for regularization. Defaults to 0.01.
+            num_epochs (int, optional): Total number of training epochs. Defaults to 1000.
+            pct_start (float, optional): Percentage of the cycle spent increasing the learning rate. Defaults to 0.2.
+            save_path (str, optional): Path to save the trained model. Defaults to 'actuator_model_gru.pt'.
+            entity_name (str, optional): Entity name for Weights & Biases. Defaults to 'your_account'.
+            project_name (str, optional): Project name for Weights & Biases. Defaults to 'actuator-net-training'.
+            run_name (str, optional): Run name for Weights & Biases. Defaults to 'actuator-net-gru-run'.
+
+        Returns:
+            torch.nn.Module: The trained actuator neural network model.
+        """
         save_path = self.ensure_unique_save_path(save_path)
         X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
         
         steps_per_epoch = len(X_train) // batch_size
-        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch)
+        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy)
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
             "learning_rate_max": lri,
