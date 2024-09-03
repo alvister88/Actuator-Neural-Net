@@ -108,7 +108,7 @@ class ActuatorNetTrainer:
             "Total Training Time (seconds)": total_train_time
         })
         if is_best or (epoch + 1) % 50 == 0:
-            message = f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}, LR: {lr:.6f}'
+            message = f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.7f}, Val Loss: {val_loss:.7f}, LR: {lr:.7f}'
             if is_best:
                 message += f' (Best - Saved to {save_path})'
             print(message)

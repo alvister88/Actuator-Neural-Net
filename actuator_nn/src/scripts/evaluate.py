@@ -11,8 +11,8 @@ import time
 
 def main():
     # Load the dataset
-    data_path = '../data/gains2/torque_ripple1.txt'  # Update this path as needed
-    model_path = '../weights/best_actuator_gru_model37.pt'  # Update this path as needed
+    data_path = '../data/gains3/validation_data_1.txt'  # Update this path as needed
+    model_path = '../weights/actuator_gruv2_model2.pt'  # Update this path as needed
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
     

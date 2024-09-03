@@ -9,7 +9,7 @@ def load_data(file_path):
 def plot_data(data):
     # Create a figure with subplots
     fig = make_subplots(rows=6, cols=1, shared_xaxes=True, vertical_spacing=0.02,
-                        subplot_titles=('Position', 'Velocity', 'Acceleration', 'Error', 'Torque', 'Current'))
+                        subplot_titles=('Position', 'Velocity', 'Acceleration', 'Error', 'Current', 'Torque'))
 
     # Create a sample index as a list
     samples = list(range(len(data)))
@@ -28,10 +28,10 @@ def plot_data(data):
     fig.add_trace(go.Scatter(x=samples, y=data['Error'], name='Error'), row=4, col=1)
 
     # Plot Samples vs Current
-    fig.add_trace(go.Scatter(x=samples, y=data['Current'], name='Current'), row=5, col=1)
+    fig.add_trace(go.Scatter(x=samples, y=data['Current'], name='Current', line=dict(color='pink')), row=5, col=1)
 
     # Plot Samples vs Torque
-    fig.add_trace(go.Scatter(x=samples, y=data['Torque'], name='Torque'), row=6, col=1)
+    fig.add_trace(go.Scatter(x=samples, y=data['Torque'], name='Torque', line=dict(color='cyan')), row=6, col=1)
 
 
     # Update layout
@@ -41,8 +41,8 @@ def plot_data(data):
     fig.update_yaxes(title_text="Velocity", row=2, col=1)
     fig.update_yaxes(title_text="Acceleration", row=3, col=1)
     fig.update_yaxes(title_text="Error", row=4, col=1)
-    fig.update_yaxes(title_text="Torque", row=5, col=1)
-    fig.update_yaxes(title_text="Current", row=6, col=1)
+    fig.update_yaxes(title_text="Current", row=5, col=1)
+    fig.update_yaxes(title_text="Torque", row=6, col=1)
 
     # Show the plot
     fig.show()
