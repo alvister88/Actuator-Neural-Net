@@ -8,7 +8,7 @@ import wandb
 
 def main():
     # Set paths
-    model_path = '../weights/actuator_gruv2_model12.pt'
+    model_path = '../weights/actuator_gruv2_model14.pt'
     train_data = '../data/gains3/train_data_2.txt'
     validation_data = '../data/gains3/validation_data_2.txt'
     eval_data_path = '../data/gains3/test2.txt'
@@ -24,7 +24,7 @@ def main():
 
     # Set Wandb params
     project_name = 'actuator-net-training-v2'
-    run_name = 'actuator-net-gruv2-12'
+    run_name = 'actuator-net-gruv2-14'
     entity_name = 'alvister88'
 
     # Train the model
@@ -38,7 +38,7 @@ def main():
         num_epochs=3000,
         pct_start=0.1,
         anneal_strategy='cos',
-        weight_decay=0.005,
+        weight_decay=0.01,
         save_path=model_path,
         entity_name=entity_name,
         project_name=project_name,

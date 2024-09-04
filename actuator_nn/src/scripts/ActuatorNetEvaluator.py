@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy import stats
 from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
 import time
 import os
@@ -99,18 +100,73 @@ class ActuatorNetEvaluator:
         }
 
     def plot_predictions_vs_actual(self, y, predictions):
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual'))
-        fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')))
-        fig.update_layout(
-            title=f'Actuator Network Predictions vs Actual Torque - Model: {self.model_name}',
-            xaxis_title='Actual Torque (N·m)',
-            yaxis_title='Predicted Torque (N·m)',
-            yaxis=dict(tickformat=".2f")
+        # Calculate model error
+        error_values = predictions - y
+
+        # Calculate z-scores
+        z_scores = stats.zscore(error_values)
+
+        # Create subplots
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=False, vertical_spacing=0.3,
+                            subplot_titles=("Predictions vs Actual", "Model Error Distribution"))
+
+        # Predictions vs Actual plot
+        fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')), row=1, col=1)
+
+        # Error histogram with z-scores
+        fig.add_trace(go.Histogram(x=error_values, name='Error Distribution', histnorm='probability'), row=2, col=1)
+
+        # Update layout for each subplot
+        fig.update_xaxes(title_text='Actual Torque (N·m)', row=1, col=1)
+        fig.update_yaxes(title_text='Predicted Torque (N·m)', tickformat=".2f", row=1, col=1)
+        fig.update_xaxes(title_text='Model Error (N·m)', row=2, col=1)
+        fig.update_yaxes(title_text='Probability', row=2, col=1, dtick=0.005)
+
+        # Add secondary x-axis for z-scores
+        fig.update_xaxes(
+            title_text='Z-Score',
+            overlaying='x',
+            side='top',
+            row=2, col=1,
+            range=[z_scores.min(), z_scores.max()],
+            showgrid=False
         )
 
+        # Add vertical lines for standard deviations
+        for sd in [-3, -2, -1, 0, 1, 2, 3]:
+            fig.add_vline(x=np.mean(error_values) + sd * np.std(error_values), line_dash="dash", line_color="red",
+                          annotation_text=f"{sd}σ", annotation_position="bottom", row=2, col=1)
+
+        # Add horizontal lines to Predictions vs Actual plot
         for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):
-            fig.add_hline(y=i, line_dash="dash", line_color="gray")
+            fig.add_shape(type="line", x0=y.min(), x1=y.max(), y0=i, y1=i,
+                          line=dict(dash="dash", color="gray"), row=1, col=1)
+
+        # Calculate error statistics
+        rms_error = np.sqrt(np.mean(error_values**2))
+        mean_error = np.mean(error_values)
+        error_variance = np.var(error_values)
+
+        # Add annotations for error statistics
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=0.98, y=0.15,
+            text=f"RMS Error: {rms_error:.3f} N·m<br>Mean Error: {mean_error:.3f} N·m<br>Error Variance: {error_variance:.6f}",
+            showarrow=False,
+            font=dict(size=12),
+            align="right",
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="black",
+            borderwidth=1
+        )
+
+        # Update overall layout
+        fig.update_layout(
+            height=800,
+            title_text=f'Actuator Network Predictions vs Actual Torque - Model: {self.model_name}',
+            showlegend=True
+        )
 
         fig.show()
 
