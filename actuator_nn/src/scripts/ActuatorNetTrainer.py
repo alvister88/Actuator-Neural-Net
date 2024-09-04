@@ -32,7 +32,7 @@ class ActuatorNetTrainer:
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
-        accelerations = data['Acceleration'].values
+        accelerations = data['Current'].values
         torques = data['Torque'].values
         return position_errors, velocities, accelerations, torques
 

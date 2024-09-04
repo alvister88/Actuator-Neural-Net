@@ -63,6 +63,7 @@ class ActuatorNetEvaluator:
         
         # Determine the hidden size and number of layers from the state dict
         hidden_size = state_dict['gru.weight_ih_l0'].size(0) // 3
+        self.input_size = state_dict['gru.weight_ih_l0'].size(1)
         num_layers = sum(1 for key in state_dict.keys() if key.startswith('gru.weight_ih_l'))
         
         # Create the model with the correct architecture
@@ -187,7 +188,7 @@ class ActuatorNetEvaluator:
         fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)
 
         fig.add_trace(go.Scatter(y=accelerations[-len(y):], mode='lines', name='Acceleration'), row=3, col=1)
-        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=5.0)
+        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=100.0)
 
         # Calculate model variance +-
         std_dev = np.sqrt(self.error_variance)
