@@ -15,6 +15,10 @@ class ActuatorNetEvaluator:
         self.history_size = self.hidden_size  # Assuming HISTORY_SIZE is the same as hidden_size
         self.model_name = os.path.basename(model_path)
 
+        # for sharing between graphs
+        self.error_variance = None
+        self.error_values = None
+
     def load_data(self, file_path):
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
@@ -89,7 +93,7 @@ class ActuatorNetEvaluator:
         percentage_accuracy = (1 - (rms_error / torque_range)) * 100
         print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
 
-        self.plot_predictions_vs_actual(y, predictions)
+        self.plot_predictions_vs_actual(y, predictions) # This graph has to go first since next graph relies on some of its calculations
         self.plot_data_visualization(y, predictions, position_errors, velocities, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
 
         return {
@@ -101,10 +105,10 @@ class ActuatorNetEvaluator:
 
     def plot_predictions_vs_actual(self, y, predictions):
         # Calculate model error
-        error_values = predictions - y
+        self.error_values = predictions - y
 
         # Calculate z-scores
-        z_scores = stats.zscore(error_values)
+        z_scores = stats.zscore(self.error_values)
 
         # Create subplots
         fig = make_subplots(rows=2, cols=1, shared_xaxes=False, vertical_spacing=0.3,
@@ -115,7 +119,7 @@ class ActuatorNetEvaluator:
         fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')), row=1, col=1)
 
         # Error histogram with z-scores
-        fig.add_trace(go.Histogram(x=error_values, name='Error Distribution', histnorm='probability'), row=2, col=1)
+        fig.add_trace(go.Histogram(x=self.error_values, name='Error Distribution', histnorm='probability'), row=2, col=1)
 
         # Update layout for each subplot
         fig.update_xaxes(title_text='Actual Torque (N·m)', row=1, col=1)
@@ -135,7 +139,7 @@ class ActuatorNetEvaluator:
 
         # Add vertical lines for standard deviations
         for sd in [-3, -2, -1, 0, 1, 2, 3]:
-            fig.add_vline(x=np.mean(error_values) + sd * np.std(error_values), line_dash="dash", line_color="red",
+            fig.add_vline(x=np.mean(self.error_values) + sd * np.std(self.error_values), line_dash="dash", line_color="red",
                           annotation_text=f"{sd}σ", annotation_position="bottom", row=2, col=1)
 
         # Add horizontal lines to Predictions vs Actual plot
@@ -144,15 +148,15 @@ class ActuatorNetEvaluator:
                           line=dict(dash="dash", color="gray"), row=1, col=1)
 
         # Calculate error statistics
-        rms_error = np.sqrt(np.mean(error_values**2))
-        mean_error = np.mean(error_values)
-        error_variance = np.var(error_values)
+        rms_error = np.sqrt(np.mean(self.error_values**2))
+        mean_error = np.mean(self.error_values)
+        self.error_variance = np.var(self.error_values)
 
         # Add annotations for error statistics
         fig.add_annotation(
             xref="paper", yref="paper",
             x=0.98, y=0.15,
-            text=f"RMS Error: {rms_error:.3f} N·m<br>Mean Error: {mean_error:.3f} N·m<br>Error Variance: {error_variance:.6f}",
+            text=f"RMS Error: {rms_error:.3f} N·m<br>Mean Error: {mean_error:.3f} N·m<br>Error Variance: {self.error_variance:.6f}",
             showarrow=False,
             font=dict(size=12),
             align="right",
@@ -179,14 +183,41 @@ class ActuatorNetEvaluator:
         fig.add_trace(go.Scatter(y=velocities[-len(y):], mode='lines', name='Velocity'), row=2, col=1)
         fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)
 
-        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(dash='dot')), row=3, col=1)
-        fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque'), row=3, col=1)
+        # Calculate model variance +-
+        std_dev = np.sqrt(self.error_variance)
+
+        # Create arrays for upper and lower bounds
+        upper_bound = predictions + 2 * std_dev
+        lower_bound = predictions - 2 * std_dev
+
+        # Add actual torque
+        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dash')), row=3, col=1)
+
+        # Add predicted torque with variance
+        fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#B967FF')), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            y=upper_bound,
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo='skip'
+        ), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            y=lower_bound,
+            mode='lines',
+            line=dict(width=0),
+            fillcolor='rgba(255, 0, 0, 0.2)',
+            fill='tonexty',
+            name='Variance',
+            hoverinfo='skip'
+        ), row=3, col=1)
+
         fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=5.0)
 
-        fig.add_trace(go.Scatter(y=y - predictions, mode='lines', name='Prediction Error'), row=4, col=1)
+        fig.add_trace(go.Scatter(y=self.error_values, mode='lines', name='Prediction Error'), row=4, col=1)
         fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=1.0)
 
-        for i in range(int(np.min(y - predictions)), int(np.max(y - predictions)) + 1, 2):
+        for i in range(int(np.min(self.error_values)), int(np.max(self.error_values)) + 1, 2):
             fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
 
         annotations = [
@@ -196,6 +227,7 @@ class ActuatorNetEvaluator:
             f"Accuracy: {percentage_accuracy:.2f}%",
             f"Total inference: {total_inference_time:.4f} ms",
             f"Avg. inference: {average_inference_time:.6f} us",
+            f"Error Variance: {self.error_variance:.6f}"
         ]
 
         for i, annotation in enumerate(annotations):
