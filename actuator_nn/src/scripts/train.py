@@ -8,7 +8,7 @@ import wandb
 
 def main():
     # Set paths
-    model_path = '../weights/actuator_gruv3_model18.pt'
+    model_path = '../weights/actuator_gruv3_model6.pt'
     train_data = '../data/gains3/train_data_2.txt'
     validation_data = '../data/gains3/validation_data_2.txt'
     eval_data_path = '../data/gains3/test2.txt'
@@ -20,20 +20,20 @@ def main():
     # model = ActuatorNet(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1)
 
     # Create the trainer
-    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1, device=device)
+    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.03, device=device)
 
     # Set Wandb params
     project_name = 'actuator-net-training-v3'
-    run_name = 'actuator-net-gruv3-1'
+    run_name = 'actuator-net-gruv3-6'
     entity_name = 'alvister88'
 
     # Train the model
     trained_model = trainer.train_model(
         train_data_path=train_data,
         val_data_path=validation_data,
-        lri=0.0005,
-        lrf=0.00002,
-        batch_size=512,
+        lri=0.0003,
+        lrf=0.000008,
+        batch_size=128,
         patience=200,
         num_epochs=3000,
         pct_start=0.15,
@@ -47,11 +47,11 @@ def main():
 
     # Evaluate the model after training
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
-    position_errors, velocities, accelerations, torques = evaluator.load_data(eval_data_path)
-    X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
+    position_errors, velocities, currents, torques = evaluator.load_data(eval_data_path)
+    X, y = evaluator.prepare_sequence_data(position_errors, velocities, currents, torques)
 
     # Capture the evaluation metrics
-    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques)
+    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, currents, torques)
 
 if __name__ == "__main__":
     main()
