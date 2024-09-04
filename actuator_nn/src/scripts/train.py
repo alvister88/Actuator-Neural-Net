@@ -47,11 +47,11 @@ def main():
 
     # Evaluate the model after training
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
-    position_errors, velocities, accelerations, torques = evaluator.load_data(eval_data_path)
-    X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
+    position_errors, velocities, currents, torques = evaluator.load_data(eval_data_path)
+    X, y = evaluator.prepare_sequence_data(position_errors, velocities, currents, torques)
 
     # Capture the evaluation metrics
-    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques)
+    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, currents, torques)
 
 if __name__ == "__main__":
     main()
