@@ -12,9 +12,9 @@ import time
 def main():
     # Load the dataset
     data_path = '../data/gains3/torqueripple3.txt'  # Update this path as needed
-    model_path = '../weights/actuator_gruv2_model18.pt'  # Update this path as needed
+    model_path = '../weights/actuator_gruv3_model5.pt'  # Update this path as needed
 
-    evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
+    evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
     
     position_errors, velocities, accelerations, torques = evaluator.load_data(data_path)
     X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)

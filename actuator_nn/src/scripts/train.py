@@ -8,9 +8,9 @@ import wandb
 
 def main():
     # Set paths
-    model_path = '../weights/actuator_gruv3_model18.pt'
-    train_data = '../data/gains3/train_data_2.txt'
-    validation_data = '../data/gains3/validation_data_2.txt'
+    model_path = '../weights/actuator_gruv3_model5.pt'
+    train_data = '../data/gains3/train_data_3.txt'
+    validation_data = '../data/gains3/validation_data_3.txt'
     eval_data_path = '../data/gains3/test2.txt'
 
     # Set device
@@ -20,23 +20,23 @@ def main():
     # model = ActuatorNet(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1)
 
     # Create the trainer
-    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1, device=device)
+    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.05, device=device)
 
     # Set Wandb params
     project_name = 'actuator-net-training-v3'
-    run_name = 'actuator-net-gruv3-1'
+    run_name = 'actuator-net-gruv3-5'
     entity_name = 'alvister88'
 
     # Train the model
     trained_model = trainer.train_model(
         train_data_path=train_data,
         val_data_path=validation_data,
-        lri=0.0005,
-        lrf=0.00002,
-        batch_size=512,
+        lri=0.0001,
+        lrf=0.000005,
+        batch_size=64,
         patience=200,
         num_epochs=3000,
-        pct_start=0.15,
+        pct_start=0.12,
         anneal_strategy='cos',
         weight_decay=0.01,
         save_path=model_path,
