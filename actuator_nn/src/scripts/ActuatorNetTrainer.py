@@ -72,32 +72,34 @@ class ActuatorNetTrainer:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy='cos'):
+    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start):
         criterion = nn.MSELoss()
         optimizer = optim.AdamW(self.net.parameters(), lr=lri, weight_decay=weight_decay)
+        total_steps = num_epochs * steps_per_epoch
         scheduler = OneCycleLR(optimizer, 
-                               max_lr=lri,
-                               steps_per_epoch=steps_per_epoch,
-                               epochs=num_epochs,
-                               pct_start=pct_start,
-                               anneal_strategy='cos',
-                               final_div_factor=lri/lrf,
-                               div_factor=25)
+                            max_lr=lri,
+                            total_steps=total_steps,
+                            pct_start=pct_start,
+                            anneal_strategy='cos',
+                            final_div_factor=lri/lrf,
+                            div_factor=25)
         return criterion, optimizer, scheduler
 
     def train_epoch(self, X_train, y_train, optimizer, criterion, scheduler, batch_size):
         self.net.train()
         train_loss = 0
-        for i in range(0, len(X_train), batch_size):
-            batch_X, batch_y = X_train[i:i+batch_size], y_train[i:i+batch_size]
+        num_batches = len(X_train) // batch_size
+        for i in range(num_batches):
+            batch_X = X_train[i*batch_size:(i+1)*batch_size]
+            batch_y = y_train[i*batch_size:(i+1)*batch_size]
             optimizer.zero_grad()
             outputs = self.net(batch_X)
             loss = criterion(outputs, batch_y.unsqueeze(1))
             loss.backward()
             optimizer.step()
-            scheduler.step()  # Step the scheduler every batch
+            scheduler.step()
             train_loss += loss.item()
-        return train_loss / (len(X_train) // batch_size)
+        return train_loss / num_batches
 
     def validate(self, X_val, y_val, criterion):
         self.net.eval()
@@ -171,7 +173,7 @@ class ActuatorNetTrainer:
         X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
         
         steps_per_epoch = len(X_train) // batch_size
-        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy)
+        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start,)
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
             "learning_rate_max": lri,
