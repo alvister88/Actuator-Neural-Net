@@ -16,10 +16,10 @@ def main():
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
     
-    position_errors, velocities, torques = evaluator.load_data(data_path)
-    X, y = evaluator.prepare_sequence_data(position_errors, velocities, torques)
+    position_errors, velocities, accelerations, torques = evaluator.load_data(data_path)
+    X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
     
-    evaluator.evaluate_model(X, y, position_errors, velocities, torques)
+    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques)
 
 if __name__ == "__main__":
     main()

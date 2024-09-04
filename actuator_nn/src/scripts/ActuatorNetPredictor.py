@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from collections import deque
-from ActuatorNet import ActuatorNet, INPUT_SIZE, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
+from ActuatorNet import ActuatorNet, INPUT_SIZE, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR, MAX_ACCEL
 
 class ActuatorNetPredictor:
     def __init__(self, model_path, device=None):
@@ -9,6 +9,7 @@ class ActuatorNetPredictor:
         self.model, self.history_size = self.load_model(model_path)
         self.error_buffer = deque(maxlen=self.history_size)
         self.velocity_buffer = deque(maxlen=self.history_size)
+        self.acceleration_buffer = deque(maxlen=self.history_size)
 
     def load_model(self, model_path):
         state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
@@ -27,26 +28,30 @@ class ActuatorNetPredictor:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def prepare_input(self, error, velocity):
+    def prepare_input(self, error, velocity, acceleration):
         # Normalize the input
         normalized_error = self.normalize_data(error, -MAX_ERROR, MAX_ERROR)
         normalized_velocity = self.normalize_data(velocity, -MAX_VELOCITY, MAX_VELOCITY)
+        normalized_acceleration = self.normalize_data(acceleration, -MAX_ACCEL, MAX_ACCEL)
 
         self.error_buffer.append(normalized_error)
         self.velocity_buffer.append(normalized_velocity)
+        self.acceleration_buffer.append(normalized_acceleration)
 
         # Pad the buffers if they're not full
         padded_errors = list(self.error_buffer) + [0] * (self.history_size - len(self.error_buffer))
         padded_velocities = list(self.velocity_buffer) + [0] * (self.history_size - len(self.velocity_buffer))
+        padded_accelerations = list(self.acceleration_buffer) + [0] * (self.history_size - len(self.acceleration_buffer))
 
         input_data = np.column_stack((
             np.array(padded_errors),
-            np.array(padded_velocities)
+            np.array(padded_velocities),
+            np.array(padded_accelerations)
         ))
         return torch.FloatTensor(input_data).unsqueeze(0).to(self.device)
 
-    def predict(self, error, velocity):
-        input_tensor = self.prepare_input(error, velocity)
+    def predict(self, error, velocity, acceleration):
+        input_tensor = self.prepare_input(error, velocity, acceleration)
         with torch.no_grad():
             prediction = self.model(input_tensor)
         # Denormalize the prediction

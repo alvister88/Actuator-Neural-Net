@@ -8,7 +8,7 @@ import wandb
 
 def main():
     # Set paths
-    model_path = '../weights/actuator_gruv2_model18.pt'
+    model_path = '../weights/actuator_gruv3_model18.pt'
     train_data = '../data/gains3/train_data_2.txt'
     validation_data = '../data/gains3/validation_data_2.txt'
     eval_data_path = '../data/gains3/test2.txt'
@@ -23,8 +23,8 @@ def main():
     trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1, device=device)
 
     # Set Wandb params
-    project_name = 'actuator-net-training-v2'
-    run_name = 'actuator-net-gruv2-18'
+    project_name = 'actuator-net-training-v3'
+    run_name = 'actuator-net-gruv3-1'
     entity_name = 'alvister88'
 
     # Train the model
@@ -47,11 +47,11 @@ def main():
 
     # Evaluate the model after training
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
-    position_errors, velocities, torques = evaluator.load_data(eval_data_path)
-    X, y = evaluator.prepare_sequence_data(position_errors, velocities, torques)
+    position_errors, velocities, accelerations, torques = evaluator.load_data(eval_data_path)
+    X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
 
     # Capture the evaluation metrics
-    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, torques)
+    evaluation_metrics = evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques)
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ import pandas as pd
 import os
 import wandb
 import time
-from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
+from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR, MAX_ACCEL
 import signal
 
 class ActuatorNetTrainer:
@@ -32,14 +32,16 @@ class ActuatorNetTrainer:
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
+        accelerations = data['Acceleration'].values
         torques = data['Torque'].values
-        return position_errors, velocities, torques
+        return position_errors, velocities, accelerations, torques
 
-    def prepare_sequence_data(self, position_errors, velocities, torques):
+    def prepare_sequence_data(self, position_errors, velocities, accelerations, torques):
         X, y = [], []
         for i in range(len(torques) - HISTORY_SIZE + 1):
             X.append(np.column_stack((position_errors[i:i+HISTORY_SIZE], 
-                                      velocities[i:i+HISTORY_SIZE])))
+                                      velocities[i:i+HISTORY_SIZE],
+                                      accelerations[i:i+HISTORY_SIZE])))
             y.append(torques[i+HISTORY_SIZE-1])
         return np.array(X), np.array(y)
     
@@ -47,20 +49,22 @@ class ActuatorNetTrainer:
         return 2 * (data - min_val) / (max_val - min_val) - 1
 
     def prepare_data(self, train_data_path, val_data_path):
-        train_position_errors, train_velocities, train_torques = self.load_data(train_data_path)
-        val_position_errors, val_velocities, val_torques = self.load_data(val_data_path)
+        train_position_errors, train_velocities, train_accelerations, train_torques = self.load_data(train_data_path)
+        val_position_errors, val_velocities, val_accelerations, val_torques = self.load_data(val_data_path)
 
         # Normalize the data
         train_position_errors = self.normalize_data(train_position_errors, -MAX_ERROR, MAX_ERROR)
         train_velocities = self.normalize_data(train_velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        train_accelerations = self.normalize_data(train_accelerations, -MAX_ACCEL, MAX_ACCEL)
         train_torques = self.normalize_data(train_torques, -MAX_TORQUE, MAX_TORQUE)
 
         val_position_errors = self.normalize_data(val_position_errors, -MAX_ERROR, MAX_ERROR)
         val_velocities = self.normalize_data(val_velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        val_accelerations = self.normalize_data(val_accelerations, -MAX_ACCEL, MAX_ACCEL)
         val_torques = self.normalize_data(val_torques, -MAX_TORQUE, MAX_TORQUE)
 
-        X_train, y_train = self.prepare_sequence_data(train_position_errors, train_velocities, train_torques)
-        X_val, y_val = self.prepare_sequence_data(val_position_errors, val_velocities, val_torques)
+        X_train, y_train = self.prepare_sequence_data(train_position_errors, train_velocities, train_accelerations, train_torques)
+        X_val, y_val = self.prepare_sequence_data(val_position_errors, val_velocities, val_accelerations, val_torques)
 
         X_train = torch.FloatTensor(X_train).to(self.device)
         y_train = torch.FloatTensor(y_train).to(self.device)

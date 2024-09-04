@@ -4,12 +4,12 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy import stats
-from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR
+from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR, MAX_ACCEL
 import time
 import os
 
 class ActuatorNetEvaluator:
-    def __init__(self, model_path, run_device=None, input_size=2):
+    def __init__(self, model_path, run_device=None, input_size=3):
         self.model, self.device, self.hidden_size, self.num_layers = self.load_model(model_path, run_device)
         self.input_size = input_size
         self.history_size = self.hidden_size  # Assuming HISTORY_SIZE is the same as hidden_size
@@ -23,8 +23,9 @@ class ActuatorNetEvaluator:
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
+        accelerations = data['Acceleration'].values  
         torques = data['Torque'].values
-        return position_errors, velocities, torques
+        return position_errors, velocities, accelerations, torques  
 
     def normalize_data(self, data, min_val, max_val):
         return 2 * (data - min_val) / (max_val - min_val) - 1
@@ -32,15 +33,17 @@ class ActuatorNetEvaluator:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def prepare_sequence_data(self, position_errors, velocities, torques):
-        # Normalize only the input data
+    def prepare_sequence_data(self, position_errors, velocities, accelerations, torques):
+        # Normalize the input data
         position_errors = self.normalize_data(position_errors, -MAX_ERROR, MAX_ERROR)
         velocities = self.normalize_data(velocities, -MAX_VELOCITY, MAX_VELOCITY)
+        accelerations = self.normalize_data(accelerations, -MAX_ACCEL, MAX_ACCEL) 
 
         X, y = [], []
         for i in range(len(torques) - self.history_size + 1):
             X.append(np.column_stack((position_errors[i:i+self.history_size], 
-                                      velocities[i:i+self.history_size])))
+                                      velocities[i:i+self.history_size],
+                                      accelerations[i:i+self.history_size])))  
             y.append(torques[i+self.history_size-1])
         return np.array(X), np.array(y)
 
@@ -63,14 +66,14 @@ class ActuatorNetEvaluator:
         num_layers = sum(1 for key in state_dict.keys() if key.startswith('gru.weight_ih_l'))
         
         # Create the model with the correct architecture
-        model = ActuatorNet(hidden_size=hidden_size, num_layers=num_layers, dropout_rate=0.1)
+        model = ActuatorNet(input_size=self.input_size, hidden_size=hidden_size, num_layers=num_layers, dropout_rate=0.1)
         model.load_state_dict(state_dict)
         model.to(device)
         model.eval()
                 
         return model, device, hidden_size, num_layers
 
-    def evaluate_model(self, X, y, position_errors, velocities, torques):
+    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques):
         self.model.eval()
         X_tensor = torch.FloatTensor(X).to(self.device)
 
@@ -93,8 +96,8 @@ class ActuatorNetEvaluator:
         percentage_accuracy = (1 - (rms_error / torque_range)) * 100
         print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
 
-        self.plot_predictions_vs_actual(y, predictions) # This graph has to go first since next graph relies on some of its calculations
-        self.plot_data_visualization(y, predictions, position_errors, velocities, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
+        self.plot_predictions_vs_actual(y, predictions)
+        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
 
         return {
             'total_inference_time': total_inference_time,
@@ -174,14 +177,17 @@ class ActuatorNetEvaluator:
 
         fig.show()
 
-    def plot_data_visualization(self, y, predictions, position_errors, velocities, rms_error, percentage_accuracy, total_inference_time, average_inference_time):
-        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.01)
+    def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, rms_error, percentage_accuracy, total_inference_time, average_inference_time):
+        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.01)
 
         fig.add_trace(go.Scatter(y=position_errors[-len(y):], mode='lines', name='Error'), row=1, col=1)
         fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5)
 
         fig.add_trace(go.Scatter(y=velocities[-len(y):], mode='lines', name='Velocity'), row=2, col=1)
         fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)
+
+        fig.add_trace(go.Scatter(y=accelerations[-len(y):], mode='lines', name='Acceleration'), row=3, col=1)
+        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=5.0)
 
         # Calculate model variance +-
         std_dev = np.sqrt(self.error_variance)
@@ -191,17 +197,17 @@ class ActuatorNetEvaluator:
         lower_bound = predictions - 2 * std_dev
 
         # Add actual torque
-        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dot')), row=3, col=1)
+        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dot')), row=4, col=1)
 
         # Add predicted torque with variance
-        fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#B967FF')), row=3, col=1)
+        fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#B967FF')), row=4, col=1)
         fig.add_trace(go.Scatter(
             y=upper_bound,
             mode='lines',
             line=dict(width=0),
             showlegend=False,
             hoverinfo='skip'
-        ), row=3, col=1)
+        ), row=4, col=1)
         fig.add_trace(go.Scatter(
             y=lower_bound,
             mode='lines',
@@ -210,15 +216,15 @@ class ActuatorNetEvaluator:
             fill='tonexty',
             name='Variance',
             hoverinfo='skip'
-        ), row=3, col=1)
+        ), row=4, col=1)
 
-        fig.update_yaxes(title_text='Torque (N·m)', row=3, col=1, tickformat=".2f", dtick=5.0)
+        fig.update_yaxes(title_text='Torque (N·m)', row=4, col=1, tickformat=".2f", dtick=5.0)
 
-        fig.add_trace(go.Scatter(y=self.error_values, mode='lines', name='Prediction Error'), row=4, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=4, col=1, tickformat=".2f", dtick=1.0)
+        fig.add_trace(go.Scatter(y=self.error_values, mode='lines', name='Prediction Error'), row=5, col=1)
+        fig.update_yaxes(title_text='Model Error (N·m)', row=5, col=1, tickformat=".2f", dtick=1.0)
 
         for i in range(int(np.min(self.error_values)), int(np.max(self.error_values)) + 1, 2):
-            fig.add_hline(y=i, line_dash="dash", line_color="gray", row=4, col=1)
+            fig.add_hline(y=i, line_dash="dash", line_color="gray", row=5, col=1)
 
         annotations = [
             f"Model: {self.model_name}",
@@ -240,7 +246,7 @@ class ActuatorNetEvaluator:
                 align="left",
             )
 
-        fig.update_layout(height=1200, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True)
+        fig.update_layout(height=1500, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True)
         fig.show()
 
 def main():

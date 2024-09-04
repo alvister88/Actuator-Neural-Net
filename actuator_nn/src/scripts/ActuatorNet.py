@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 # GLOBAL VARIABLES
-HISTORY_SIZE = 36
-INPUT_SIZE = 2  # Position error and velocity
+HISTORY_SIZE = 30
+INPUT_SIZE = 3  # Position error and velocity
 NUM_LAYERS = 4
 
 '''Warning! Changing these will change all the models!'''
@@ -11,6 +11,7 @@ NUM_LAYERS = 4
 MAX_TORQUE = 150
 MAX_VELOCITY = 250
 MAX_ERROR = 6.28
+MAX_ACCEL = 2500
 
 class ActuatorNet(nn.Module):
     def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2):
