@@ -191,7 +191,7 @@ class ActuatorNetEvaluator:
         lower_bound = predictions - 2 * std_dev
 
         # Add actual torque
-        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dash')), row=3, col=1)
+        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dot')), row=3, col=1)
 
         # Add predicted torque with variance
         fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#B967FF')), row=3, col=1)

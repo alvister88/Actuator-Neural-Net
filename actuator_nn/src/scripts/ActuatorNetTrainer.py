@@ -72,7 +72,7 @@ class ActuatorNetTrainer:
     def denormalize_torque(self, normalized_torque):
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
-    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start):
+    def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy):
         criterion = nn.MSELoss()
         optimizer = optim.AdamW(self.net.parameters(), lr=lri, weight_decay=weight_decay)
         total_steps = num_epochs * steps_per_epoch
@@ -80,7 +80,7 @@ class ActuatorNetTrainer:
                             max_lr=lri,
                             total_steps=total_steps,
                             pct_start=pct_start,
-                            anneal_strategy='cos',
+                            anneal_strategy=anneal_strategy,
                             final_div_factor=lri/lrf,
                             div_factor=25)
         return criterion, optimizer, scheduler
@@ -161,6 +161,7 @@ class ActuatorNetTrainer:
             weight_decay (float, optional): Weight decay for regularization. Defaults to 0.01.
             num_epochs (int, optional): Total number of training epochs. Defaults to 1000.
             pct_start (float, optional): Percentage of the cycle spent increasing the learning rate. Defaults to 0.2.
+            anneal_strategy (str, optional): Annealing strategy for the learning rate. Defaults to 'cos'.
             save_path (str, optional): Path to save the trained model. Defaults to 'actuator_model_gru.pt'.
             entity_name (str, optional): Entity name for Weights & Biases. Defaults to 'your_account'.
             project_name (str, optional): Project name for Weights & Biases. Defaults to 'actuator-net-training'.
@@ -173,13 +174,15 @@ class ActuatorNetTrainer:
         X_train, y_train, X_val, y_val = self.prepare_data(train_data_path, val_data_path)
         
         steps_per_epoch = len(X_train) // batch_size
-        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start,)
+        criterion, optimizer, scheduler = self.setup_training(lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy)
 
         wandb.init(project=project_name, entity=entity_name, name=run_name, config={
             "learning_rate_max": lri,
             "learning_rate_final": lrf,
             "batch_size": batch_size,
             "num_epochs": num_epochs,
+            "pct_start": pct_start,
+            "anneal_strategy": anneal_strategy,
             "save_path": save_path,
             "weight_decay": weight_decay,
             "patience": patience,
