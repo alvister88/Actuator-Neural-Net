@@ -8,7 +8,7 @@ import wandb
 
 def main():
     # Set paths
-    model_path = '../weights/actuator_gruv3_model5.pt'
+    model_path = '../weights/actuator_gruv3_model7.pt'
     train_data = '../data/gains3/train_data_3.txt'
     validation_data = '../data/gains3/validation_data_3.txt'
     eval_data_path = '../data/gains3/test2.txt'
@@ -20,11 +20,11 @@ def main():
     # model = ActuatorNet(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.1)
 
     # Create the trainer
-    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.05, device=device)
+    trainer = ActuatorNetTrainer(hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.03, device=device)
 
     # Set Wandb params
     project_name = 'actuator-net-training-v3'
-    run_name = 'actuator-net-gruv3-5'
+    run_name = 'actuator-net-gruv3-7'
     entity_name = 'alvister88'
 
     # Train the model

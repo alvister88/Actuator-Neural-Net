@@ -23,7 +23,7 @@ class ActuatorNetEvaluator:
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
-        accelerations = data['Current'].values  
+        accelerations = data['Acceleration'].values  
         torques = data['Torque'].values
         return position_errors, velocities, accelerations, torques  
 
