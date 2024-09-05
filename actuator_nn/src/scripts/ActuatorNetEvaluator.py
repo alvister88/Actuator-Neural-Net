@@ -14,12 +14,14 @@ class ActuatorNetEvaluator:
         self.input_size = input_size
         self.history_size = self.hidden_size  # Assuming HISTORY_SIZE is the same as hidden_size
         self.model_name = os.path.basename(model_path)
+        self.file_path = None
 
         # for sharing between graphs
         self.error_variance = None
         self.error_values = None
 
     def load_data(self, file_path):
+        self.file_path = file_path
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
@@ -222,6 +224,7 @@ class ActuatorNetEvaluator:
 
         annotations = [
             f"Model: {self.model_name}",
+            f"File Path: {self.file_path}",
             f"Device: {self.device.type}",
             f"Test RMS Error: {rms_error:.3f} N·m",
             f"Accuracy: {percentage_accuracy:.2f}%",

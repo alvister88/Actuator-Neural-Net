@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 # GLOBAL VARIABLES
-HISTORY_SIZE = 36
+HISTORY_SIZE = 30
 INPUT_SIZE = 2  # Position error and velocity
 NUM_LAYERS = 4
 
