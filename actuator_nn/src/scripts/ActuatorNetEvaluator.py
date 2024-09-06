@@ -240,10 +240,10 @@ class ActuatorNetEvaluator:
         for i, annotation in enumerate(annotations):
             fig.add_annotation(
                 xref="paper", yref="paper",
-                x=1.11, y=0.48 - i*0.04,
+                x=1.1, y=0.48 - i*0.04,
                 text=annotation,
                 showarrow=False,
-                font=dict(size=11),
+                font=dict(size=12),
                 align="left",
             )
 
