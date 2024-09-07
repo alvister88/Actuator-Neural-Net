@@ -68,11 +68,6 @@ def main():
     parser.set_defaults(randomize=True)
     args = parser.parse_args()
 
-    # Check if chunk size has been changed
-    if args.chunk_size != 3500:
-        print("\033[93mWARNING: Chunk size has been changed from the default value of 3500.")
-        print("Please ensure you update the train chunk size in your training script accordingly.\033[0m")
-
     train_count, val_count = split_data(args.input_file, args.output_dir, args.train_ratio, args.chunk_size, args.number, args.randomize)
 
     # Construct file names for the print statements
