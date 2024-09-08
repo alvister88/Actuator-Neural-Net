@@ -213,10 +213,10 @@ class ActuatorNetEvaluator:
 
 
     def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, 
-                                rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
-                                plot_vs_time=False, save_html=False):
+                            rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                            plot_vs_time=False, save_html=False):
         """
-        Plot data visualization either versus time or sample indices.
+        Plot data visualization either versus time or sample indices, with a light gray border around each subplot.
         
         Parameters:
             plot_vs_time (bool): If True, plot versus the 'Time' column. Otherwise, plot versus sample indices.
@@ -226,91 +226,110 @@ class ActuatorNetEvaluator:
         # Choose x-axis: either time values from the file or sample indices
         if plot_vs_time and self.time_values is not None:
             x_axis = self.time_values[-len(y):]  # Time values (truncate to match length of y)
-            x_axis_label = 'Time (s)'
+            x_axis_label = 'Time [s]'
         else:
             x_axis = np.arange(len(y)) / sampling_rate  # Sample indices (converted to time in seconds)
-            x_axis_label = 'Samples' if not plot_vs_time else 'Time (s)'
+            x_axis_label = 'Samples' if not plot_vs_time else 'Time [s]'
 
-        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.02)
+        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.05)
 
         # Position Error plot
-        fig.add_trace(go.Scatter(x=x_axis, y=position_errors[-len(y):], mode='lines', name='Error', line=dict(color='orange')), row=1, col=1)
-        fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5, showgrid=True, gridcolor='lightgray')
+        fig.add_trace(go.Scatter(
+            x=x_axis, 
+            y=position_errors[-len(y):], 
+            mode='lines', 
+            name='Position Error', 
+            line=dict(color='purple', width=2)
+        ), row=1, col=1)
+        fig.update_yaxes(title_text='Position Error [rad]', row=1, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, row=1, col=1, mirror=True)  # Add mirror
 
         # Velocity plot
-        fig.add_trace(go.Scatter(x=x_axis, y=velocities[-len(y):], mode='lines', name='Velocity', line=dict(color='light blue')), row=2, col=1)
-        fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0, showgrid=True, gridcolor='lightgray')
+        fig.add_trace(go.Scatter(
+            x=x_axis, 
+            y=velocities[-len(y):], 
+            mode='lines', 
+            name='Velocity', 
+            line=dict(color='blue', width=2)
+        ), row=2, col=1)
+        fig.update_yaxes(title_text='Velocity [units/s]', row=2, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, row=2, col=1, mirror=True)  # Add mirror
 
         # Acceleration plot
-        fig.add_trace(go.Scatter(x=x_axis, y=accelerations[-len(y):], mode='lines', name='Acceleration', line=dict(color='light green')), row=3, col=1)
-        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=100.0, showgrid=True, gridcolor='lightgray')
-
-        # Calculate model variance and add shaded region
-        std_dev = np.sqrt(self.error_variance)
-
-        # Add actual torque
-        fig.add_trace(go.Scatter(x=x_axis, y=y, mode='lines', name='Actual Torque', line=dict(color='gray', dash='dot')), row=4, col=1)
-
-        # Add predicted torque
-        fig.add_trace(go.Scatter(x=x_axis, y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#17becf')), row=4, col=1)
-
-        # Upper and lower bounds for variance
-        upper_bound = predictions + 2 * std_dev
-        lower_bound = predictions - 2 * std_dev
-
-        # Add upper bound as a line (invisible)
         fig.add_trace(go.Scatter(
-            x=x_axis, y=upper_bound, mode='lines', line=dict(width=0),
-            showlegend=False, hoverinfo='skip'
+            x=x_axis, 
+            y=accelerations[-len(y):], 
+            mode='lines', 
+            name='Acceleration', 
+            line=dict(color='green', width=2)
+        ), row=3, col=1)
+        fig.update_yaxes(title_text='Acceleration [units/s²]', row=3, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, row=3, col=1, mirror=True)  # Add mirror
+
+        # Predicted vs Actual Torque plot
+        fig.add_trace(go.Scatter(
+            x=x_axis, 
+            y=y, 
+            mode='lines', 
+            name='Actual Torque', 
+            line=dict(color='black', width=2, dash='dot')
         ), row=4, col=1)
 
-        # Add lower bound with filled region to next line, creating the shaded area
         fig.add_trace(go.Scatter(
-            x=x_axis, y=lower_bound, mode='lines', line=dict(width=0),
-            fill='tonexty', fillcolor='rgba(255, 0, 0, 0.2)',  # semi-transparent red fill for variance
-            showlegend=False, hoverinfo='skip'
+            x=x_axis, 
+            y=predictions, 
+            mode='lines', 
+            name='Predicted Torque', 
+            line=dict(color='red', width=2)
         ), row=4, col=1)
 
-        fig.update_yaxes(title_text='Torque (N·m)', row=4, col=1, tickformat=".2f", dtick=5.0, showgrid=True, gridcolor='lightgray')
+        fig.update_yaxes(title_text='Torque [Nm]', row=4, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, row=4, col=1, mirror=True)  # Add mirror
 
         # Model Error plot
-        fig.add_trace(go.Scatter(x=x_axis, y=self.error_values, mode='lines', name='Prediction Error', line=dict(color='red')), row=5, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=5, col=1, tickformat=".2f", dtick=1.0, showgrid=True, gridcolor='lightgray')
+        fig.add_trace(go.Scatter(
+            x=x_axis, 
+            y=self.error_values, 
+            mode='lines', 
+            name='Prediction Error', 
+            line=dict(color='red', width=2)
+        ), row=5, col=1)
+        fig.update_yaxes(title_text='Model Error [Nm]', row=5, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+        fig.update_xaxes(title_text=x_axis_label, row=5, col=1, 
+                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
+                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror
 
-        # Set x-axis labels to time or samples
-        fig.update_xaxes(title_text=x_axis_label, row=5, col=1)
-
-        # Annotations for metrics
-        annotations = [
-            f"Model: {self.model_name}",
-            f"Device: {self.device.type}",
-            f"Test RMS Error: {rms_error:.3f} N·m",
-            f"Accuracy: {percentage_accuracy:.2f}%",
-            f"Total inference: {total_inference_time:.4f} ms",
-            f"Avg. inference: {average_inference_time:.6f} us",
-            f"Error Variance: {self.error_variance:.6f}"
-        ]
-
-        for i, annotation in enumerate(annotations):
-            fig.add_annotation(
-                xref="paper", yref="paper",
-                x=1.1, y=0.48 - i*0.04,
-                text=annotation,
-                showarrow=False,
-                font=dict(size=12),
-                align="left",
-            )
-
+        # Update layout for a clean style with a light gray border around each subplot
         fig.update_layout(
-            height=1500, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True,
-            plot_bgcolor='white', paper_bgcolor='white'
+            height=1800,  # Adjust height based on your preference
+            title_text=f'Data Visualization - Model: {self.model_name}',
+            showlegend=True,
+            plot_bgcolor='white',  # White background for a clean look
+            paper_bgcolor='white',  # White background for the figure
+            margin=dict(l=50, r=50, t=50, b=50),  # Adjust margins to remove clutter
         )
 
         fig.show()
         
         # Save the plot as HTML if specified
         if save_html:
-            fig.write_html(f'predictions_vs_actual_{self.model_name}.html')
+            fig.write_html(f'plot_data_visualization_{self.model_name}.html')
+
+
 
 
 def main():
