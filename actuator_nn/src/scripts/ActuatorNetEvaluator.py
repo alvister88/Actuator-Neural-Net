@@ -222,6 +222,11 @@ class ActuatorNetEvaluator:
             plot_vs_time (bool): If True, plot versus the 'Time' column. Otherwise, plot versus sample indices.
         """
         sampling_rate = 300  # Sampling rate in Hz (if plotting by samples)
+        boarder_thickness = 3  # Thickness of the border around each subplot
+        line_thickness = 3  # Thickness of the line around each subplot
+        tick_len = 8  # Length of the ticks
+        tick_width = 3  # Thickness of the ticks
+        tick_color = 'lightgray'  # Color of the ticks
 
         # Choose x-axis: either time values from the file or sample indices
         if plot_vs_time and self.time_values is not None:
@@ -239,13 +244,13 @@ class ActuatorNetEvaluator:
             y=position_errors[-len(y):], 
             mode='lines', 
             name='Position Error', 
-            line=dict(color='purple', width=2)
+            line=dict(color='purple', width=line_thickness)
         ), row=1, col=1)
         fig.update_yaxes(title_text='Position Error [rad]', row=1, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, row=1, col=1, mirror=True)  # Add mirror
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=1, col=1, mirror='ticks')  # Add mirror
 
         # Velocity plot
         fig.add_trace(go.Scatter(
@@ -253,13 +258,13 @@ class ActuatorNetEvaluator:
             y=velocities[-len(y):], 
             mode='lines', 
             name='Velocity', 
-            line=dict(color='blue', width=2)
+            line=dict(color='blue', width=line_thickness)
         ), row=2, col=1)
         fig.update_yaxes(title_text='Velocity [units/s]', row=2, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, row=2, col=1, mirror=True)  # Add mirror
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=2, col=1, mirror='ticks')  # Add mirror
 
         # Acceleration plot
         fig.add_trace(go.Scatter(
@@ -267,36 +272,36 @@ class ActuatorNetEvaluator:
             y=accelerations[-len(y):], 
             mode='lines', 
             name='Acceleration', 
-            line=dict(color='green', width=2)
+            line=dict(color='lightgreen', width=line_thickness)
         ), row=3, col=1)
         fig.update_yaxes(title_text='Acceleration [units/s²]', row=3, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, row=3, col=1, mirror=True)  # Add mirror
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=3, col=1, mirror='ticks')  # Add mirror
 
         # Predicted vs Actual Torque plot
-        fig.add_trace(go.Scatter(
-            x=x_axis, 
-            y=y, 
-            mode='lines', 
-            name='Actual Torque', 
-            line=dict(color='black', width=2, dash='dot')
-        ), row=4, col=1)
-
         fig.add_trace(go.Scatter(
             x=x_axis, 
             y=predictions, 
             mode='lines', 
             name='Predicted Torque', 
-            line=dict(color='red', width=2)
+            line=dict(color='#009FBD', width=line_thickness)
+        ), row=4, col=1)
+        
+        fig.add_trace(go.Scatter(
+            x=x_axis, 
+            y=y, 
+            mode='lines', 
+            name='Actual Torque', 
+            line=dict(color='#161D6F', width=line_thickness, dash='10px, 2px', backoff=True)
         ), row=4, col=1)
 
         fig.update_yaxes(title_text='Torque [Nm]', row=4, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, row=4, col=1, mirror=True)  # Add mirror
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
+        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=4, col=1, mirror='ticks')  # Add mirror
 
         # Model Error plot
         fig.add_trace(go.Scatter(
@@ -304,14 +309,14 @@ class ActuatorNetEvaluator:
             y=self.error_values, 
             mode='lines', 
             name='Prediction Error', 
-            line=dict(color='red', width=2)
+            line=dict(color='red', width=line_thickness)
         ), row=5, col=1)
         fig.update_yaxes(title_text='Model Error [Nm]', row=5, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror for all sides
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
         fig.update_xaxes(title_text=x_axis_label, row=5, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=2,  # Add border
-                        ticks='inside', tickcolor='black', showgrid=False, mirror=True)  # Add mirror
+                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
+                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror
 
         # Update layout for a clean style with a light gray border around each subplot
         fig.update_layout(
@@ -330,9 +335,8 @@ class ActuatorNetEvaluator:
             fig.write_html(f'plot_data_visualization_{self.model_name}.html')
 
 
-
-
 def main():
+    
     # Update these paths as needed
     data_path = '../data/normal1.txt'
     model_path = '../weights/best_actuator_model_gru.pt'
