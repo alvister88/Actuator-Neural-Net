@@ -19,7 +19,7 @@ def main():
     position_errors, velocities, accelerations, torques = evaluator.load_data(data_path)
     X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
     
-    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques)
+    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques, vs_time=True, save_html=False)
 
 if __name__ == "__main__":
     main()

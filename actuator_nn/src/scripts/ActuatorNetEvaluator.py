@@ -25,7 +25,12 @@ class ActuatorNetEvaluator:
         velocities = data['Velocity'].values
         accelerations = data['Acceleration'].values  
         torques = data['Torque'].values
-        return position_errors, velocities, accelerations, torques  
+
+        # Store time values if available
+        if 'Time' in data.columns:
+            self.time_values = data['Time'].values
+
+        return position_errors, velocities, accelerations, torques   
 
     def normalize_data(self, data, min_val, max_val):
         return 2 * (data - min_val) / (max_val - min_val) - 1
@@ -74,7 +79,7 @@ class ActuatorNetEvaluator:
                 
         return model, device, hidden_size, num_layers
 
-    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques):
+    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, vs_time=False, save_html=False):
         self.model.eval()
         X_tensor = torch.FloatTensor(X).to(self.device)
 
@@ -98,7 +103,9 @@ class ActuatorNetEvaluator:
         print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
 
         self.plot_predictions_vs_actual(y, predictions)
-        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
+        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, 
+                                     rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                                     vs_time, save_html)
 
         return {
             'total_inference_time': total_inference_time,
@@ -107,29 +114,47 @@ class ActuatorNetEvaluator:
             'percentage_accuracy': percentage_accuracy
         }
 
-    def plot_predictions_vs_actual(self, y, predictions):
+    def plot_predictions_vs_actual(self, y, predictions, save_html=False):
         # Calculate model error
         self.error_values = predictions - y
-
-        # Calculate z-scores
         z_scores = stats.zscore(self.error_values)
 
-        # Create subplots
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=False, vertical_spacing=0.3,
-                            subplot_titles=("Predictions vs Actual", "Model Error Distribution"))
+        # Create subplots with shared layout adjustments
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=False, vertical_spacing=0.3,
+            subplot_titles=("Predictions vs Actual", "Model Error Distribution")
+        )
 
         # Predictions vs Actual plot
-        fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=[y.min(), y.max()], y=[y.min(), y.max()], mode='lines', name='Ideal Line', line=dict(dash='dash')), row=1, col=1)
+        fig.add_trace(go.Scatter(x=y, y=predictions, mode='markers', name='Predictions vs Actual', marker=dict(color='blue', opacity=0.7)), row=1, col=1)
+        
+        # Ensure the ideal line spans the range of actual values on the x-axis (Actual Torque)
+        min_val = min(y.min(), predictions.min())
+        max_val = max(y.max(), predictions.max())
 
-        # Error histogram with z-scores
-        fig.add_trace(go.Histogram(x=self.error_values, name='Error Distribution', histnorm='probability'), row=2, col=1)
+        # Plot the ideal line
+        fig.add_trace(go.Scatter(
+            x=[min_val, max_val],  # Ensure the x-range matches the full range of values
+            y=[min_val, max_val],  # Ensure the y-range is the same for a diagonal line
+            mode='lines',
+            name='Ideal Line',
+            line=dict(dash='dash', color='darkred')
+        ), row=1, col=1)
 
-        # Update layout for each subplot
-        fig.update_xaxes(title_text='Actual Torque (N·m)', row=1, col=1)
-        fig.update_yaxes(title_text='Predicted Torque (N·m)', tickformat=".2f", row=1, col=1)
-        fig.update_xaxes(title_text='Model Error (N·m)', row=2, col=1)
-        fig.update_yaxes(title_text='Probability', row=2, col=1, dtick=0.005)
+
+        # Error histogram with z-scores and custom color for the bars
+        fig.add_trace(go.Histogram(
+            x=self.error_values, 
+            name='Error Distribution', 
+            histnorm='probability', 
+            marker_color='rgba(64, 224, 208, 0.8)'  # light greenish turquoise
+        ), row=2, col=1)
+
+        # Update x/y axes and grid lines for MATLAB-like appearance
+        fig.update_xaxes(title_text='Actual Torque (N·m)', row=1, col=1, showgrid=True, gridcolor='lightgray')
+        fig.update_yaxes(title_text='Predicted Torque (N·m)', row=1, col=1, tickformat=".2f", showgrid=True, gridcolor='lightgray')
+        fig.update_xaxes(title_text='Model Error (N·m)', row=2, col=1, showgrid=True, gridcolor='lightgray')
+        fig.update_yaxes(title_text='Probability', row=2, col=1, showgrid=True, gridcolor='lightgray', dtick=0.005)
 
         # Add secondary x-axis for z-scores
         fig.update_xaxes(
@@ -144,19 +169,19 @@ class ActuatorNetEvaluator:
         # Add vertical lines for standard deviations
         for sd in [-3, -2, -1, 0, 1, 2, 3]:
             fig.add_vline(x=np.mean(self.error_values) + sd * np.std(self.error_values), line_dash="dash", line_color="red",
-                          annotation_text=f"{sd}σ", annotation_position="bottom", row=2, col=1)
+                        annotation_text=f"{sd}σ", annotation_position="bottom", row=2, col=1)
 
-        # Add horizontal lines to Predictions vs Actual plot
-        for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):
-            fig.add_shape(type="line", x0=y.min(), x1=y.max(), y0=i, y1=i,
-                          line=dict(dash="dash", color="gray"), row=1, col=1)
+        # Horizontal grid lines for Predictions vs Actual plot
+        # for i in range(int(np.min(predictions)), int(np.max(predictions)) + 1, 2):
+        #     fig.add_shape(type="line", x0=y.min(), x1=y.max(), y0=i, y1=i,
+        #                 line=dict(dash="dash", color="gray"), row=1, col=1)
 
-        # Calculate error statistics
+        # Error statistics
         rms_error = np.sqrt(np.mean(self.error_values**2))
         mean_error = np.mean(self.error_values)
         self.error_variance = np.var(self.error_values)
 
-        # Add annotations for error statistics
+        # Annotations
         fig.add_annotation(
             xref="paper", yref="paper",
             x=0.98, y=0.15,
@@ -169,64 +194,93 @@ class ActuatorNetEvaluator:
             borderwidth=1
         )
 
-        # Update overall layout
+        # Update overall layout for MATLAB style
         fig.update_layout(
             height=800,
             title_text=f'Actuator Network Predictions vs Actual Torque - Model: {self.model_name}',
-            showlegend=True
+            showlegend=True,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            xaxis=dict(showline=True, linewidth=1, linecolor='black', mirror=True),
+            yaxis=dict(showline=True, linewidth=1, linecolor='black', mirror=True),
         )
 
         fig.show()
+        
+        # Save the plot as HTML if specified
+        if save_html:
+            fig.write_html(f'predictions_vs_actual_{self.model_name}.html')
 
-    def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, rms_error, percentage_accuracy, total_inference_time, average_inference_time):
-        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.01)
 
-        fig.add_trace(go.Scatter(y=position_errors[-len(y):], mode='lines', name='Error'), row=1, col=1)
-        fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5)
+    def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, 
+                                rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                                plot_vs_time=False, save_html=False):
+        """
+        Plot data visualization either versus time or sample indices.
+        
+        Parameters:
+            plot_vs_time (bool): If True, plot versus the 'Time' column. Otherwise, plot versus sample indices.
+        """
+        sampling_rate = 300  # Sampling rate in Hz (if plotting by samples)
 
-        fig.add_trace(go.Scatter(y=velocities[-len(y):], mode='lines', name='Velocity'), row=2, col=1)
-        fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0)
+        # Choose x-axis: either time values from the file or sample indices
+        if plot_vs_time and self.time_values is not None:
+            x_axis = self.time_values[-len(y):]  # Time values (truncate to match length of y)
+            x_axis_label = 'Time (s)'
+        else:
+            x_axis = np.arange(len(y)) / sampling_rate  # Sample indices (converted to time in seconds)
+            x_axis_label = 'Samples' if not plot_vs_time else 'Time (s)'
 
-        fig.add_trace(go.Scatter(y=accelerations[-len(y):], mode='lines', name='Acceleration'), row=3, col=1)
-        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=100.0)
+        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.02)
 
-        # Calculate model variance +-
+        # Position Error plot
+        fig.add_trace(go.Scatter(x=x_axis, y=position_errors[-len(y):], mode='lines', name='Error', line=dict(color='orange')), row=1, col=1)
+        fig.update_yaxes(title_text='Position Error (rad)', row=1, col=1, tickformat=".2f", dtick=0.5, showgrid=True, gridcolor='lightgray')
+
+        # Velocity plot
+        fig.add_trace(go.Scatter(x=x_axis, y=velocities[-len(y):], mode='lines', name='Velocity', line=dict(color='light blue')), row=2, col=1)
+        fig.update_yaxes(title_text='Velocity (units/s)', row=2, col=1, tickformat=".2f", dtick=5.0, showgrid=True, gridcolor='lightgray')
+
+        # Acceleration plot
+        fig.add_trace(go.Scatter(x=x_axis, y=accelerations[-len(y):], mode='lines', name='Acceleration', line=dict(color='light green')), row=3, col=1)
+        fig.update_yaxes(title_text='Acceleration (units/s²)', row=3, col=1, tickformat=".2f", dtick=100.0, showgrid=True, gridcolor='lightgray')
+
+        # Calculate model variance and add shaded region
         std_dev = np.sqrt(self.error_variance)
 
-        # Create arrays for upper and lower bounds
+        # Add actual torque
+        fig.add_trace(go.Scatter(x=x_axis, y=y, mode='lines', name='Actual Torque', line=dict(color='gray', dash='dot')), row=4, col=1)
+
+        # Add predicted torque
+        fig.add_trace(go.Scatter(x=x_axis, y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#17becf')), row=4, col=1)
+
+        # Upper and lower bounds for variance
         upper_bound = predictions + 2 * std_dev
         lower_bound = predictions - 2 * std_dev
 
-        # Add actual torque
-        fig.add_trace(go.Scatter(y=y, mode='lines', name='Actual Torque', line=dict(color='#17becf', dash='dot')), row=4, col=1)
-
-        # Add predicted torque with variance
-        fig.add_trace(go.Scatter(y=predictions, mode='lines', name='Predicted Torque', line=dict(color='#B967FF')), row=4, col=1)
+        # Add upper bound as a line (invisible)
         fig.add_trace(go.Scatter(
-            y=upper_bound,
-            mode='lines',
-            line=dict(width=0),
-            showlegend=False,
-            hoverinfo='skip'
-        ), row=4, col=1)
-        fig.add_trace(go.Scatter(
-            y=lower_bound,
-            mode='lines',
-            line=dict(width=0),
-            fillcolor='rgba(255, 0, 0, 0.2)',
-            fill='tonexty',
-            name='Variance',
-            hoverinfo='skip'
+            x=x_axis, y=upper_bound, mode='lines', line=dict(width=0),
+            showlegend=False, hoverinfo='skip'
         ), row=4, col=1)
 
-        fig.update_yaxes(title_text='Torque (N·m)', row=4, col=1, tickformat=".2f", dtick=5.0)
+        # Add lower bound with filled region to next line, creating the shaded area
+        fig.add_trace(go.Scatter(
+            x=x_axis, y=lower_bound, mode='lines', line=dict(width=0),
+            fill='tonexty', fillcolor='rgba(255, 0, 0, 0.2)',  # semi-transparent red fill for variance
+            showlegend=False, hoverinfo='skip'
+        ), row=4, col=1)
 
-        fig.add_trace(go.Scatter(y=self.error_values, mode='lines', name='Prediction Error'), row=5, col=1)
-        fig.update_yaxes(title_text='Model Error (N·m)', row=5, col=1, tickformat=".2f", dtick=1.0)
+        fig.update_yaxes(title_text='Torque (N·m)', row=4, col=1, tickformat=".2f", dtick=5.0, showgrid=True, gridcolor='lightgray')
 
-        for i in range(int(np.min(self.error_values)), int(np.max(self.error_values)) + 1, 2):
-            fig.add_hline(y=i, line_dash="dash", line_color="gray", row=5, col=1)
+        # Model Error plot
+        fig.add_trace(go.Scatter(x=x_axis, y=self.error_values, mode='lines', name='Prediction Error', line=dict(color='red')), row=5, col=1)
+        fig.update_yaxes(title_text='Model Error (N·m)', row=5, col=1, tickformat=".2f", dtick=1.0, showgrid=True, gridcolor='lightgray')
 
+        # Set x-axis labels to time or samples
+        fig.update_xaxes(title_text=x_axis_label, row=5, col=1)
+
+        # Annotations for metrics
         annotations = [
             f"Model: {self.model_name}",
             f"Device: {self.device.type}",
@@ -247,8 +301,17 @@ class ActuatorNetEvaluator:
                 align="left",
             )
 
-        fig.update_layout(height=1500, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True)
+        fig.update_layout(
+            height=1500, title_text=f'Data Visualization - Model: {self.model_name}', showlegend=True,
+            plot_bgcolor='white', paper_bgcolor='white'
+        )
+
         fig.show()
+        
+        # Save the plot as HTML if specified
+        if save_html:
+            fig.write_html(f'predictions_vs_actual_{self.model_name}.html')
+
 
 def main():
     # Update these paths as needed
