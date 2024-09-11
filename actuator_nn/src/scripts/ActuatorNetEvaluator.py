@@ -446,7 +446,7 @@ class ActuatorNetEvaluator:
                 title_text=x_axis_label, row=i, col=1, showline=True, linecolor='lightgray',
                 linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
                 ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks',
-                showticklabels=(i == 5)  # Only show tick labels on bottom subplot
+                showticklabels=True  # Only show tick labels on bottom subplot
             )
 
         # Calculate metrics for annotations
