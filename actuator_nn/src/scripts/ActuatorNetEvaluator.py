@@ -21,6 +21,7 @@ class ActuatorNetEvaluator:
         self.error_values = None
 
     def load_data(self, file_path):
+        self.file_path = file_path
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
@@ -229,60 +230,23 @@ class ActuatorNetEvaluator:
         if save_html:
             fig.write_html(f'predictions_vs_actual_{self.model_name}.html')
     
-    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
-        self.model.eval()
-        X_tensor = torch.FloatTensor(X).to(self.device)
-
-        start_time = time.time()
-        with torch.no_grad():
-            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
-            predictions = self.denormalize_torque(normalized_predictions)
-        end_time = time.time()
-
-        total_inference_time = 1000 * (end_time - start_time) 
-        average_inference_time = 1000 * total_inference_time / len(X)
-
-        print(f'Total inference time: {total_inference_time:.4f} ms')
-        print(f'Average inference time per sample: {average_inference_time:.6f} us')
-
-        rms_error = np.sqrt(np.mean((predictions - y) ** 2))
-        print(f'Test RMS Error: {rms_error:.3f} N·m')
-
-        torque_range = np.max(y) - np.min(y)
-        percentage_accuracy = (1 - (rms_error / torque_range)) * 100
-        print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
-
-        self.plot_predictions_vs_actual(y, predictions)
-        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, 
-                                     rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
-                                     vs_time, save_html, save_pdf, pdf_subplots)
-
-        return {
-            'total_inference_time': total_inference_time,
-            'average_inference_time': average_inference_time,
-            'rms_error': rms_error,
-            'percentage_accuracy': percentage_accuracy
-        }
-        
-
 
     def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, 
                                 rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
                                 plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
-        sampling_rate = 300  # Sampling rate in Hz (if plotting by samples)
-        border_thickness = 3  # Thickness of the border around each subplot
-        line_thickness = 3  # Thickness of the line around each subplot
-        tick_len = 8  # Length of the ticks
-        tick_width = 3  # Thickness of the ticks
-        tick_color = 'lightgray'  # Color of the ticks
+        border_thickness = 3
+        line_thickness = 3
+        tick_len = 8
+        tick_width = 3
+        tick_color = 'lightgray'
 
-        # Choose x-axis: either time values from the file or sample indices
+        # Choose x-axis: either time values (starting from 0) or sample indices
         if plot_vs_time and hasattr(self, 'time_values'):
-            x_axis = self.time_values[-len(y):]  # Time values (truncate to match length of y)
+            x_axis = self.time_values[-len(y):] - self.time_values[-len(y)]  # Start from 0
             x_axis_label = 'Time [s]'
         else:
-            x_axis = np.arange(len(y)) / sampling_rate  # Sample indices (converted to time in seconds)
-            x_axis_label = 'Time [s]'
+            x_axis = np.arange(len(y))  # Raw sample values
+            x_axis_label = 'Sample'
 
         fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.05)
 
@@ -370,10 +334,10 @@ class ActuatorNetEvaluator:
                 tickwidth=tick_width,
                 showgrid=False,
                 mirror='ticks',
-                showticklabels=True  # Show tick labels for all subplots
+                showticklabels=True  # Only show tick labels on bottom subplot
             )
 
-       # Update layout
+        # Update layout
         fig.update_layout(
             height=1800,
             title_text=f'Data Visualization - Model: {self.model_name}',
@@ -393,6 +357,207 @@ class ActuatorNetEvaluator:
         # Save specific subplots as PDF if requested
         if save_pdf and pdf_subplots:
             self.save_subplots_as_pdf(fig, pdf_subplots)
+
+    def plot_predictions(self, data_file, prediction_files, plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
+        # Load the original data
+        data = pd.read_csv(data_file, delimiter=',')
+        position_errors = data['Error'].values
+        velocities = data['Velocity'].values
+        accelerations = data['Acceleration'].values
+        actual_torques = data['Torque'].values
+
+        # Load time values if available
+        if 'Time' in data.columns:
+            self.time_values = data['Time'].values
+
+        # Choose x-axis: either time values (starting from 0) or sample indices
+        if plot_vs_time and hasattr(self, 'time_values'):
+            x_axis = self.time_values - self.time_values[0]  # Start from 0
+            x_axis_label = 'Time [s]'
+        else:
+            x_axis = np.arange(len(actual_torques))
+            x_axis_label = 'Sample'
+
+        # Plotting parameters
+        border_thickness = 3
+        line_thickness = 3
+        tick_len = 8
+        tick_width = 3
+        tick_color = 'lightgray'
+
+        # Create subplots
+        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.05)
+
+        # Position Error plot
+        fig.add_trace(go.Scatter(
+            x=x_axis, y=position_errors, mode='lines', name='Position Error',
+            line=dict(color='purple', width=line_thickness)
+        ), row=1, col=1)
+        
+        # Velocity plot
+        fig.add_trace(go.Scatter(
+            x=x_axis, y=velocities, mode='lines', name='Velocity',
+            line=dict(color='blue', width=line_thickness)
+        ), row=2, col=1)
+        
+        # Acceleration plot
+        fig.add_trace(go.Scatter(
+            x=x_axis, y=accelerations, mode='lines', name='Acceleration',
+            line=dict(color='lightgreen', width=line_thickness)
+        ), row=3, col=1)
+        
+        # Actual Torque plot
+        fig.add_trace(go.Scatter(
+            x=x_axis, y=actual_torques, mode='lines', name='Actual Torque',
+            line=dict(color='#161D6F', width=line_thickness)
+        ), row=4, col=1)
+
+        # Plot predictions from each file
+        colors = ['#009FBD', '#FF5733', '#DAF7A6', '#FF3300', '#33FF00']  # Add more colors if needed
+
+        for i, pred_file in enumerate(prediction_files):
+            predictions = np.loadtxt(pred_file, delimiter=',')
+            fig.add_trace(go.Scatter(
+                x=x_axis[-len(predictions):], y=predictions, mode='lines',
+                name=f'Predicted Torque {i+1}',
+                line=dict(color=colors[i % len(colors)], width=line_thickness, dash='10px, 2px', backoff=True)
+            ), row=4, col=1)
+
+            # Calculate and plot error for each prediction
+            error = predictions - actual_torques[-len(predictions):]
+            fig.add_trace(go.Scatter(
+                x=x_axis[-len(predictions):], y=error, mode='lines',
+                name=f'Error {i+1}',
+                line=dict(color=colors[i % len(colors)], width=line_thickness)
+            ), row=5, col=1)
+
+        # Update y-axes for all subplots
+        y_titles = ['Position Error [rad]', 'Velocity [units/s]', 'Acceleration [units/s²]', 'Torque [Nm]', 'Model Error [Nm]']
+        for i, title in enumerate(y_titles, start=1):
+            fig.update_yaxes(
+                title_text=title, row=i, col=1, showline=True, linecolor='lightgray',
+                linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
+                ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks'
+            )
+
+        # Update x-axes for all subplots
+        for i in range(1, 6):
+            fig.update_xaxes(
+                title_text=x_axis_label, row=i, col=1, showline=True, linecolor='lightgray',
+                linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
+                ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks',
+                showticklabels=(i == 5)  # Only show tick labels on bottom subplot
+            )
+
+        # Calculate metrics for annotations
+        rms_errors = []
+        percentage_accuracies = []
+        for pred_file in prediction_files:
+            predictions = np.loadtxt(pred_file, delimiter=',')
+            error = predictions - actual_torques[-len(predictions):]
+            rms_error = np.sqrt(np.mean(error**2))
+            torque_range = np.max(actual_torques) - np.min(actual_torques)
+            percentage_accuracy = (1 - (rms_error / torque_range)) * 100
+            rms_errors.append(rms_error)
+            percentage_accuracies.append(percentage_accuracy)
+
+        # Add annotations as a table
+        annotation_text = "Model | RMS Error (N·m) | Accuracy (%)<br>"
+        for i, (rms_error, accuracy) in enumerate(zip(rms_errors, percentage_accuracies)):
+            annotation_text += f"{i+1} | {rms_error:.3f} | {accuracy:.2f}<br>"
+
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=0.5, y=1.05,
+            text=annotation_text,
+            showarrow=False,
+            font=dict(size=12),
+            align="center",
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="black",
+            borderwidth=1
+        )
+
+        # Update layout
+        fig.update_layout(
+            height=1800,
+            title_text=f'Data and Predictions Visualization',
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=50, r=50, t=100, b=50),  # Increased top margin for annotations
+        )
+
+        # Show the full figure
+        fig.show()
+        
+        # Save the full plot as HTML if specified
+        if save_html:
+            fig.write_html(f'plot_predictions_comparison.html')
+
+        # Save specific subplots as PDF if requested
+        if save_pdf and pdf_subplots:
+            self.save_subplots_as_pdf(fig, pdf_subplots)
+
+    def save_predictions(self, predictions, output_file):
+        """
+        Save the predicted torque values to a text file.
+        
+        Args:
+        predictions (numpy.ndarray): Array of predicted torque values.
+        output_file (str): Path to the output file.
+        """
+        np.savetxt(output_file, predictions, delimiter=',', fmt='%.6f')
+        print(f"Predicted torque values saved to {output_file}")
+
+    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, 
+                       vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None, 
+                       save_predictions=False, prediction_output_file=None):
+        self.model.eval()
+        X_tensor = torch.FloatTensor(X).to(self.device)
+
+        start_time = time.time()
+        with torch.no_grad():
+            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
+            predictions = self.denormalize_torque(normalized_predictions)
+        end_time = time.time()
+
+        total_inference_time = 1000 * (end_time - start_time) 
+        average_inference_time = 1000 * total_inference_time / len(X)
+
+        print(f'Total inference time: {total_inference_time:.4f} ms')
+        print(f'Average inference time per sample: {average_inference_time:.6f} us')
+
+        rms_error = np.sqrt(np.mean((predictions - y) ** 2))
+        print(f'Test RMS Error: {rms_error:.3f} N·m')
+
+        torque_range = np.max(y) - np.min(y)
+        percentage_accuracy = (1 - (rms_error / torque_range)) * 100
+        print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
+
+        self.plot_predictions_vs_actual(y, predictions)
+        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, 
+                                     rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                                     vs_time, save_html, save_pdf, pdf_subplots)
+
+        if save_predictions:
+            if prediction_output_file is None:
+                prediction_output_file = f'predicted_torque_{self.model_name}.txt'
+            self.save_predictions(predictions, prediction_output_file)
+
+        return {
+            'total_inference_time': total_inference_time,
+            'average_inference_time': average_inference_time,
+            'rms_error': rms_error,
+            'percentage_accuracy': percentage_accuracy
+        }
 
 def main():
     

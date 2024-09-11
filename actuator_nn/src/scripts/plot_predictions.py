@@ -13,16 +13,11 @@ def main():
     # Load the dataset
     data_path = '../data/gains3/test3.txt'  # Update this path as needed
     model_path = '../weights/actuator_gruv3_model13.pt'  # Update this path as needed
+    prediction_files = ['predictions/predicted_torque_actuator_gruv3_model13.pt.txt']
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
     
-    position_errors, velocities, accelerations, torques = evaluator.load_data(data_path)
-    X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
-    save_plots = ['torque', 'model_error']
-    
-    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques, 
-                             vs_time=True, save_html=False, save_pdf=False, pdf_subplots=save_plots, 
-                             save_predictions=True)
+    evaluator.plot_predictions(data_file=data_path, prediction_files=prediction_files, plot_vs_time=True, save_html=False)
 
 if __name__ == "__main__":
     main()
