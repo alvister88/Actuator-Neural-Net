@@ -1,8 +1,9 @@
 import torch
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 from scipy import stats
 from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_TORQUE, MAX_VELOCITY, MAX_ERROR, MAX_ACCEL
 import time
@@ -79,40 +80,57 @@ class ActuatorNetEvaluator:
                 
         return model, device, hidden_size, num_layers
 
-    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, vs_time=False, save_html=False):
-        self.model.eval()
-        X_tensor = torch.FloatTensor(X).to(self.device)
-
-        start_time = time.time()
-        with torch.no_grad():
-            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
-            predictions = self.denormalize_torque(normalized_predictions)
-        end_time = time.time()
-
-        total_inference_time = 1000 * (end_time - start_time) 
-        average_inference_time = 1000 * total_inference_time / len(X)
-
-        print(f'Total inference time: {total_inference_time:.4f} ms')
-        print(f'Average inference time per sample: {average_inference_time:.6f} us')
-
-        rms_error = np.sqrt(np.mean((predictions - y) ** 2))
-        print(f'Test RMS Error: {rms_error:.3f} N·m')
-
-        torque_range = np.max(y) - np.min(y)
-        percentage_accuracy = (1 - (rms_error / torque_range)) * 100
-        print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
-
-        self.plot_predictions_vs_actual(y, predictions)
-        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, 
-                                     rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
-                                     vs_time, save_html)
-
-        return {
-            'total_inference_time': total_inference_time,
-            'average_inference_time': average_inference_time,
-            'rms_error': rms_error,
-            'percentage_accuracy': percentage_accuracy
+    
+    def save_subplots_as_pdf(self, fig, pdf_subplots, output_dir='output'):
+        # Mapping of subplot names to their row numbers
+        subplot_mapping = {
+            'position_error': 1,
+            'velocity': 2,
+            'acceleration': 3,
+            'torque': 4,
+            'model_error': 5
         }
+
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        for subplot_name in pdf_subplots:
+            if subplot_name in subplot_mapping:
+                row = subplot_mapping[subplot_name]
+                # Create a new figure with only the specified subplot
+                subplot_fig = make_subplots(rows=1, cols=1)
+                
+                # Copy the specified subplot to the new figure
+                for trace in fig.select_traces(row=row, col=1):
+                    subplot_fig.add_trace(trace)
+                
+                # Update x and y axes
+                subplot_fig.update_xaxes(fig.layout[f'xaxis{row}'])
+                subplot_fig.update_yaxes(fig.layout[f'yaxis{row}'])
+                
+                # Update layout
+                subplot_fig.update_layout(
+                    title_text=f'{subplot_name.capitalize()} - Model: {self.model_name}',
+                    height=400,  # Adjust height as needed
+                    width=800,   # Adjust width as needed
+                    showlegend=True,
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                )
+                
+                # Save the subplot as PDF
+                pdf_path = os.path.join(output_dir, f'{subplot_name}_{self.model_name}.pdf')
+                try:
+                    pio.write_image(subplot_fig, pdf_path, format='pdf', engine='kaleido')
+                    print(f"Saved {subplot_name} subplot as PDF: {pdf_path}")
+                except Exception as e:
+                    print(f"Error saving {subplot_name} subplot as PDF: {str(e)}")
+                
+                # Clear the figure to free up memory
+                subplot_fig.data = []
+                subplot_fig.layout = {}
+            else:
+                print(f"Warning: {subplot_name} is not a valid subplot name.")
 
     def plot_predictions_vs_actual(self, y, predictions, save_html=False):
         # Calculate model error
@@ -210,31 +228,61 @@ class ActuatorNetEvaluator:
         # Save the plot as HTML if specified
         if save_html:
             fig.write_html(f'predictions_vs_actual_{self.model_name}.html')
+    
+    def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
+        self.model.eval()
+        X_tensor = torch.FloatTensor(X).to(self.device)
+
+        start_time = time.time()
+        with torch.no_grad():
+            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
+            predictions = self.denormalize_torque(normalized_predictions)
+        end_time = time.time()
+
+        total_inference_time = 1000 * (end_time - start_time) 
+        average_inference_time = 1000 * total_inference_time / len(X)
+
+        print(f'Total inference time: {total_inference_time:.4f} ms')
+        print(f'Average inference time per sample: {average_inference_time:.6f} us')
+
+        rms_error = np.sqrt(np.mean((predictions - y) ** 2))
+        print(f'Test RMS Error: {rms_error:.3f} N·m')
+
+        torque_range = np.max(y) - np.min(y)
+        percentage_accuracy = (1 - (rms_error / torque_range)) * 100
+        print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
+
+        self.plot_predictions_vs_actual(y, predictions)
+        self.plot_data_visualization(y, predictions, position_errors, velocities, accelerations, 
+                                     rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                                     vs_time, save_html, save_pdf, pdf_subplots)
+
+        return {
+            'total_inference_time': total_inference_time,
+            'average_inference_time': average_inference_time,
+            'rms_error': rms_error,
+            'percentage_accuracy': percentage_accuracy
+        }
+        
 
 
     def plot_data_visualization(self, y, predictions, position_errors, velocities, accelerations, 
-                            rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
-                            plot_vs_time=False, save_html=False):
-        """
-        Plot data visualization either versus time or sample indices, with a light gray border around each subplot.
-        
-        Parameters:
-            plot_vs_time (bool): If True, plot versus the 'Time' column. Otherwise, plot versus sample indices.
-        """
+                                rms_error, percentage_accuracy, total_inference_time, average_inference_time, 
+                                plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
         sampling_rate = 300  # Sampling rate in Hz (if plotting by samples)
-        boarder_thickness = 3  # Thickness of the border around each subplot
+        border_thickness = 3  # Thickness of the border around each subplot
         line_thickness = 3  # Thickness of the line around each subplot
         tick_len = 8  # Length of the ticks
         tick_width = 3  # Thickness of the ticks
         tick_color = 'lightgray'  # Color of the ticks
 
         # Choose x-axis: either time values from the file or sample indices
-        if plot_vs_time and self.time_values is not None:
+        if plot_vs_time and hasattr(self, 'time_values'):
             x_axis = self.time_values[-len(y):]  # Time values (truncate to match length of y)
             x_axis_label = 'Time [s]'
         else:
             x_axis = np.arange(len(y)) / sampling_rate  # Sample indices (converted to time in seconds)
-            x_axis_label = 'Samples' if not plot_vs_time else 'Time [s]'
+            x_axis_label = 'Time [s]'
 
         fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.05)
 
@@ -246,12 +294,7 @@ class ActuatorNetEvaluator:
             name='Position Error', 
             line=dict(color='purple', width=line_thickness)
         ), row=1, col=1)
-        fig.update_yaxes(title_text='Position Error [rad]', row=1, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=1, col=1, mirror='ticks')  # Add mirror
-
+        
         # Velocity plot
         fig.add_trace(go.Scatter(
             x=x_axis, 
@@ -260,12 +303,7 @@ class ActuatorNetEvaluator:
             name='Velocity', 
             line=dict(color='blue', width=line_thickness)
         ), row=2, col=1)
-        fig.update_yaxes(title_text='Velocity [units/s]', row=2, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=2, col=1, mirror='ticks')  # Add mirror
-
+        
         # Acceleration plot
         fig.add_trace(go.Scatter(
             x=x_axis, 
@@ -274,12 +312,7 @@ class ActuatorNetEvaluator:
             name='Acceleration', 
             line=dict(color='lightgreen', width=line_thickness)
         ), row=3, col=1)
-        fig.update_yaxes(title_text='Acceleration [units/s²]', row=3, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=3, col=1, mirror='ticks')  # Add mirror
-
+        
         # Predicted vs Actual Torque plot
         fig.add_trace(go.Scatter(
             x=x_axis, 
@@ -297,12 +330,6 @@ class ActuatorNetEvaluator:
             line=dict(color='#161D6F', width=line_thickness, dash='10px, 2px', backoff=True)
         ), row=4, col=1)
 
-        fig.update_yaxes(title_text='Torque [Nm]', row=4, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
-        fig.update_xaxes(showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, row=4, col=1, mirror='ticks')  # Add mirror
-
         # Model Error plot
         fig.add_trace(go.Scatter(
             x=x_axis, 
@@ -311,29 +338,61 @@ class ActuatorNetEvaluator:
             name='Prediction Error', 
             line=dict(color='red', width=line_thickness)
         ), row=5, col=1)
-        fig.update_yaxes(title_text='Model Error [Nm]', row=5, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror for all sides
-        fig.update_xaxes(title_text=x_axis_label, row=5, col=1, 
-                        showline=True, linecolor='lightgray', linewidth=boarder_thickness,  # Add border
-                        ticks='inside', tickcolor=tick_color, ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks')  # Add mirror
 
-        # Update layout for a clean style with a light gray border around each subplot
+        # Update y-axes for all subplots
+        y_titles = ['Position Error [rad]', 'Velocity [units/s]', 'Acceleration [units/s²]', 'Torque [Nm]', 'Model Error [Nm]']
+        for i, title in enumerate(y_titles, start=1):
+            fig.update_yaxes(
+                title_text=title, 
+                row=i, col=1, 
+                showline=True, 
+                linecolor='lightgray', 
+                linewidth=border_thickness,
+                ticks='inside', 
+                tickcolor=tick_color, 
+                ticklen=tick_len, 
+                tickwidth=tick_width, 
+                showgrid=False, 
+                mirror='ticks'
+            )
+
+        # Update x-axes for all subplots
+        for i in range(1, 6):
+            fig.update_xaxes(
+                title_text=x_axis_label,  # Only show label on bottom subplot
+                row=i, col=1,
+                showline=True,
+                linecolor='lightgray',
+                linewidth=border_thickness,
+                ticks='inside',
+                tickcolor=tick_color,
+                ticklen=tick_len,
+                tickwidth=tick_width,
+                showgrid=False,
+                mirror='ticks',
+                showticklabels=True  # Show tick labels for all subplots
+            )
+
+       # Update layout
         fig.update_layout(
-            height=1800,  # Adjust height based on your preference
+            height=1800,
             title_text=f'Data Visualization - Model: {self.model_name}',
             showlegend=True,
-            plot_bgcolor='white',  # White background for a clean look
-            paper_bgcolor='white',  # White background for the figure
-            margin=dict(l=50, r=50, t=50, b=50),  # Adjust margins to remove clutter
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=50, r=50, t=50, b=50),
         )
 
+        # Show the full figure
         fig.show()
         
-        # Save the plot as HTML if specified
+        # Save the full plot as HTML if specified
         if save_html:
             fig.write_html(f'plot_data_visualization_{self.model_name}.html')
 
+        # Save specific subplots as PDF if requested
+        if save_pdf and pdf_subplots:
+            self.save_subplots_as_pdf(fig, pdf_subplots)
 
 def main():
     

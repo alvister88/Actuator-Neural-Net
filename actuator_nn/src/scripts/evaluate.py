@@ -18,8 +18,9 @@ def main():
     
     position_errors, velocities, accelerations, torques = evaluator.load_data(data_path)
     X, y = evaluator.prepare_sequence_data(position_errors, velocities, accelerations, torques)
+    save_plots = ['torque', 'model_error']
     
-    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques, vs_time=True, save_html=False)
+    evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques, vs_time=True, save_html=False, save_pdf=True, pdf_subplots=save_plots)
 
 if __name__ == "__main__":
     main()
