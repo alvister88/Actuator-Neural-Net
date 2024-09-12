@@ -71,8 +71,19 @@ class ActuatorNetEvaluator:
         model.eval()
                 
         return model, device, hidden_size, num_layers
+    
+    def save_predictions(self, predictions, output_file):
+        """
+        Save the predicted torque values to a text file.
+        
+        Args:
+        predictions (numpy.ndarray): Array of predicted torque values.
+        output_file (str): Path to the output file.
+        """
+        np.savetxt(output_file, predictions, delimiter=',', fmt='%.6f')
+        print(f"Predicted torque values saved to {output_file}")
 
-    def evaluate_model(self, X, y, position_errors, velocities, torques):
+    def evaluate_model(self, X, y, position_errors, velocities, torques, save_predictions=False):
         self.model.eval()
         X_tensor = torch.FloatTensor(X).to(self.device)
 
@@ -94,8 +105,12 @@ class ActuatorNetEvaluator:
         torque_range = np.max(y) - np.min(y)
         percentage_accuracy = (1 - (rms_error / torque_range)) * 100
         print(f'Percentage Accuracy: {percentage_accuracy:.2f}%')
+        if save_predictions:
+            # Save predictions to a text file
+            output_file = f'predicted_torque_{self.model_name}.txt'
+            self.save_predictions(predictions, output_file)
 
-        self.plot_predictions_vs_actual(y, predictions) # This graph has to go first since next graph relies on some of its calculations
+        self.plot_predictions_vs_actual(y, predictions)
         self.plot_data_visualization(y, predictions, position_errors, velocities, rms_error, percentage_accuracy, total_inference_time, average_inference_time)
 
         return {
