@@ -22,7 +22,7 @@ def main():
     
     evaluator.evaluate_model(X, y, position_errors, velocities, accelerations, torques, 
                              vs_time=True, save_html=False, save_pdf=False, pdf_subplots=save_plots, 
-                             save_predictions=True)
+                             save_predictions=True, prediction_output_file='predicted_torque-m13-test4.txt')
 
 if __name__ == "__main__":
     main()

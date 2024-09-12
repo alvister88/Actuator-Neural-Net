@@ -358,7 +358,21 @@ class ActuatorNetEvaluator:
         if save_pdf and pdf_subplots:
             self.save_subplots_as_pdf(fig, pdf_subplots)
 
-    def plot_predictions(self, data_file, prediction_files, plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None):
+
+
+    def plot_predictions(self, data_file, prediction_files, plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None, plot_config=None):
+        # Default plot configuration
+        default_config = {
+            'position_error': False,
+            'velocity': False,
+            'acceleration': True,
+            'torque': True,
+            'prediction_error': True
+        }
+        
+        # Use provided plot_config or default if not provided
+        plot_config = plot_config or default_config
+
         # Load the original data
         data = pd.read_csv(data_file, delimiter=',')
         position_errors = data['Error'].values
@@ -385,55 +399,74 @@ class ActuatorNetEvaluator:
         tick_width = 3
         tick_color = 'lightgray'
 
+        # Determine number of active plots
+        plot_order = ['position_error', 'velocity', 'acceleration', 'torque', 'prediction_error']
+        active_plots = sum(plot_config[plot] for plot in plot_order if plot in plot_config)
+
         # Create subplots
-        fig = make_subplots(rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.05)
+        fig = make_subplots(rows=active_plots, cols=1, shared_xaxes=True, vertical_spacing=0.1)
+
+        current_row = 1
+
+        # Function to add a trace if it's enabled in plot_config
+        def add_trace_if_enabled(plot_type, trace):
+            nonlocal current_row
+            if plot_config.get(plot_type, False):
+                fig.add_trace(trace, row=current_row, col=1)
+                current_row += 1
 
         # Position Error plot
-        fig.add_trace(go.Scatter(
-            x=x_axis, y=position_errors, mode='lines', name='Position Error',
-            line=dict(color='purple', width=line_thickness)
-        ), row=1, col=1)
+        add_trace_if_enabled('position_error', 
+            go.Scatter(x=x_axis, y=position_errors, mode='lines', name='Position Error',
+                    line=dict(color='purple', width=line_thickness)))
         
         # Velocity plot
-        fig.add_trace(go.Scatter(
-            x=x_axis, y=velocities, mode='lines', name='Velocity',
-            line=dict(color='blue', width=line_thickness)
-        ), row=2, col=1)
+        add_trace_if_enabled('velocity',
+            go.Scatter(x=x_axis, y=velocities, mode='lines', name='Velocity',
+                    line=dict(color='blue', width=line_thickness)))
         
         # Acceleration plot
-        fig.add_trace(go.Scatter(
-            x=x_axis, y=accelerations, mode='lines', name='Acceleration',
-            line=dict(color='lightgreen', width=line_thickness)
-        ), row=3, col=1)
+        add_trace_if_enabled('acceleration',
+            go.Scatter(x=x_axis, y=accelerations, mode='lines', name='Acceleration',
+                    line=dict(color='lightgreen', width=line_thickness)))
         
-        # Actual Torque plot
-        fig.add_trace(go.Scatter(
-            x=x_axis, y=actual_torques, mode='lines', name='Actual Torque',
-            line=dict(color='#161D6F', width=line_thickness)
-        ), row=4, col=1)
-
-        # Plot predictions from each file
-        colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(218,247,166,0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']  # Semi-transparent colors
-
-        for i, pred_file in enumerate(prediction_files):
-            predictions = np.loadtxt(pred_file, delimiter=',')
+        # Torque plot (actual and predicted)
+        if plot_config.get('torque', False):
             fig.add_trace(go.Scatter(
-                x=x_axis[-len(predictions):], y=predictions, mode='lines',
-                name=f'Predicted Torque {i+1}',
-                line=dict(color=colors[i % len(colors)], width=line_thickness, dash='10px, 2px', backoff=True)
-            ), row=4, col=1)
+                x=x_axis, y=actual_torques, mode='lines', name='Actual Torque',
+                line=dict(color='#161D6F', width=line_thickness)
+            ), row=current_row, col=1)
 
-            # Calculate and plot error for each prediction
-            error = predictions - actual_torques[-len(predictions):]
-            fig.add_trace(go.Scatter(
-                x=x_axis[-len(predictions):], y=error, mode='lines',
-                name=f'Error {i+1}',
-                line=dict(color=colors[i % len(colors)], width=line_thickness)
-            ), row=5, col=1)
+            # Plot predictions from each file
+            colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(218,247,166,0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']  # Semi-transparent colors
+
+            for i, pred_file in enumerate(prediction_files):
+                predictions = np.loadtxt(pred_file, delimiter=',')
+                fig.add_trace(go.Scatter(
+                    x=x_axis[-len(predictions):], y=predictions, mode='lines',
+                    name=f'Predicted Torque {i+1}',
+                    line=dict(color=colors[i % len(colors)], width=line_thickness, dash='10px, 2px', backoff=True)
+                ), row=current_row, col=1)
+
+            current_row += 1
+
+        # Prediction Error plot
+        if plot_config.get('prediction_error', False):
+            for i, pred_file in enumerate(prediction_files):
+                predictions = np.loadtxt(pred_file, delimiter=',')
+                error = predictions - actual_torques[-len(predictions):]
+                fig.add_trace(go.Scatter(
+                    x=x_axis[-len(predictions):], y=error, mode='lines',
+                    name=f'Error {i+1}',
+                    line=dict(color=colors[i % len(colors)], width=line_thickness)
+                ), row=current_row, col=1)
+            current_row += 1
 
         # Update y-axes for all subplots
         y_titles = ['Position Error [rad]', 'Velocity [units/s]', 'Acceleration [units/s²]', 'Torque [Nm]', 'Model Error [Nm]']
-        for i, title in enumerate(y_titles, start=1):
+        active_y_titles = [title for plot, title in zip(plot_order, y_titles) if plot_config.get(plot, False)]
+        
+        for i, title in enumerate(active_y_titles, start=1):
             fig.update_yaxes(
                 title_text=title, row=i, col=1, showline=True, linecolor='lightgray',
                 linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
@@ -441,12 +474,12 @@ class ActuatorNetEvaluator:
             )
 
         # Update x-axes for all subplots
-        for i in range(1, 6):
+        for i in range(1, active_plots + 1):
             fig.update_xaxes(
                 title_text=x_axis_label, row=i, col=1, showline=True, linecolor='lightgray',
                 linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
                 ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks',
-                showticklabels=True  # Only show tick labels on bottom subplot
+                showticklabels=True
             )
 
         # Calculate metrics for annotations
@@ -468,7 +501,7 @@ class ActuatorNetEvaluator:
 
         fig.add_annotation(
             xref="paper", yref="paper",
-            x=0.5, y=1.05,
+            x=0.3, y=1.05,
             text=annotation_text,
             showarrow=False,
             font=dict(size=12),
@@ -480,7 +513,8 @@ class ActuatorNetEvaluator:
 
         # Update layout
         fig.update_layout(
-            height=1800,
+            height=350 * active_plots,  # Adjust height based on number of active plots
+            width=800,
             title_text=f'Data and Predictions Visualization',
             showlegend=True,
             legend=dict(
@@ -505,7 +539,7 @@ class ActuatorNetEvaluator:
         # Save specific subplots as PDF if requested
         if save_pdf and pdf_subplots:
             self.save_subplots_as_pdf(fig, pdf_subplots)
-
+            
     def save_predictions(self, predictions, output_file):
         """
         Save the predicted torque values to a text file.
