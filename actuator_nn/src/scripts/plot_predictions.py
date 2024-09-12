@@ -13,7 +13,8 @@ def main():
     # Load the dataset
     data_path = '../data/gains3/test3.txt'  # Update this path as needed
     model_path = '../weights/actuator_gruv3_model13.pt'  # Update this path as needed
-    prediction_files = ['predictions/predicted_torque_actuator_gruv3_model13.pt.txt']
+    prediction_files = ['predictions/predicted_torque_actuator_gruv3_model13.pt.txt',
+                        'predictions/predicted_torque_actuator_gruv2_model18.pt.txt']
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
     

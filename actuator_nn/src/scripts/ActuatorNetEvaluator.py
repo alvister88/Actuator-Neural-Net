@@ -413,7 +413,7 @@ class ActuatorNetEvaluator:
         ), row=4, col=1)
 
         # Plot predictions from each file
-        colors = ['#009FBD', '#FF5733', '#DAF7A6', '#FF3300', '#33FF00']  # Add more colors if needed
+        colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(218,247,166,0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']  # Semi-transparent colors
 
         for i, pred_file in enumerate(prediction_files):
             predictions = np.loadtxt(pred_file, delimiter=',')
