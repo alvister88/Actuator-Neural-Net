@@ -12,14 +12,14 @@ import time
 def main():
     # Load the dataset
     data_path = '../data/gains3/test2.txt'  # Update this path as needed
-    model_path = '../weights/actuator_gruv2_model21.pt'  # Update this path as needed
+    model_path = '../weights/actuator_gruv2_model18.pt'  # Update this path as needed
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
     
     position_errors, velocities, torques = evaluator.load_data(data_path)
     X, y = evaluator.prepare_sequence_data(position_errors, velocities, torques)
     
-    evaluator.evaluate_model(X, y, position_errors, velocities, torques, save_predictions=True)
+    evaluator.evaluate_model(X, y, position_errors, velocities, torques, save_predictions=False)
 
 if __name__ == "__main__":
     main()
