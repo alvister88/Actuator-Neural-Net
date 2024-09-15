@@ -20,6 +20,11 @@ class ActuatorNetEvaluator:
         self.error_variance = None
         self.error_values = None
 
+        # Trace the model for CPU optimization
+        example_input = torch.rand(1, self.history_size, self.input_size).to(self.device)
+        self.traced_model = self.trace_model(self.model, example_input)
+        self.trace_model = torch.jit.optimize_for_inference(self.traced_model)
+
     def load_data(self, file_path):
         self.file_path = file_path
         data = pd.read_csv(file_path, delimiter=',')
@@ -53,7 +58,22 @@ class ActuatorNetEvaluator:
                                       accelerations[i:i+self.history_size])))  
             y.append(torques[i+self.history_size-1])
         return np.array(X), np.array(y)
-
+    
+    def trace_model(self, model, input_tensor):
+        """
+        Trace the model using TorchScript for faster inference, especially on CPU.
+        
+        Args:
+        model (torch.nn.Module): The loaded model.
+        input_tensor (torch.Tensor): Example input tensor for tracing.
+        
+        Returns:
+        torch.jit.ScriptModule: Traced model for optimized execution.
+        """
+        print("Tracing model with TorchScript for CPU optimization...")
+        traced_model = torch.jit.trace(model, input_tensor)
+        print("Model successfully traced.")
+        return traced_model
 
     def load_model(self, model_path, run_device=None):
         if run_device is None:
@@ -520,16 +540,17 @@ class ActuatorNetEvaluator:
     def evaluate_model(self, X, y, position_errors, velocities, accelerations, torques, 
                        vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None, 
                        save_predictions=False, prediction_output_file=None):
-        self.model.eval()
+        # Use traced model for evaluation
+        self.traced_model.eval()
         X_tensor = torch.FloatTensor(X).to(self.device)
 
-        start_time = time.time()
+        start_time = time.perf_counter()
         with torch.no_grad():
-            normalized_predictions = self.model(X_tensor).cpu().numpy().flatten()
+            normalized_predictions = self.traced_model(X_tensor).cpu().numpy().flatten()
             predictions = self.denormalize_torque(normalized_predictions)
-        end_time = time.time()
+        end_time = time.perf_counter()
 
-        total_inference_time = 1000 * (end_time - start_time) 
+        total_inference_time = 1000 * (end_time - start_time)
         average_inference_time = 1000 * total_inference_time / len(X)
 
         print(f'Total inference time: {total_inference_time:.4f} ms')
@@ -558,6 +579,7 @@ class ActuatorNetEvaluator:
             'rms_error': rms_error,
             'percentage_accuracy': percentage_accuracy
         }
+
 
 def main():
     
