@@ -365,9 +365,9 @@ class ActuatorNetEvaluator:
         default_config = {
             'position_error': False,
             'velocity': False,
-            'acceleration': True,
+            'acceleration': False,
             'torque': True,
-            'prediction_error': True
+            'prediction_error': False
         }
         
         # Use provided plot_config or default if not provided
@@ -539,6 +539,118 @@ class ActuatorNetEvaluator:
         # Save specific subplots as PDF if requested
         if save_pdf and pdf_subplots:
             self.save_subplots_as_pdf(fig, pdf_subplots)
+            
+    def plot_error_histograms(self, data_file, prediction_files, model_names, save_html=False, save_pdf=False, pdf_subplots=None):
+        # Load the original data
+        data = pd.read_csv(data_file, delimiter=',')
+        actual_torques = data['Torque'].values
+
+        # Load time values if available
+        if 'Time' in data.columns:
+            self.time_values = data['Time'].values
+
+        # Choose x-axis: either time values (starting from 0) or sample indices
+        x_axis = np.arange(len(actual_torques))
+        x_axis_label = 'Sample'
+
+        # Plotting parameters
+        border_thickness = 3
+        line_thickness = 3
+        tick_len = 8
+        tick_width = 3
+        tick_color = 'lightgray'
+
+        # Create subplots for histograms (one per row)
+        fig = make_subplots(rows=len(prediction_files), cols=1, shared_xaxes=True, 
+                            vertical_spacing=0.1)
+
+        # Colors for histograms
+        colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(218,247,166,0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']
+
+        # Loop over prediction files and add histograms
+        rms_errors = []
+        variances = []
+        mean_errors = []
+        percentage_accuracies = []
+
+        for i, pred_file in enumerate(prediction_files):
+            predictions = np.loadtxt(pred_file, delimiter=',')
+            error = predictions - actual_torques[-len(predictions):]
+
+            # Add histogram to the plot (each on a new row)
+            fig.add_trace(go.Histogram(x=error, name=model_names[i], 
+                                    marker_color=colors[i % len(colors)], 
+                                    opacity=0.7, histnorm='probability'),
+                        row=i+1, col=1)
+
+            # Update x-axes with mirrored ticks on all 4 sides and ticks on the inside
+            fig.update_xaxes(title_text='Error (N·m)', row=i+1, col=1,
+                            showline=True, linewidth=border_thickness, linecolor='lightgray', 
+                            mirror='ticks', ticks='inside', tickwidth=tick_width, tickcolor=tick_color, 
+                            ticklen=tick_len, showgrid=False)
+
+            # Update y-axes with mirrored ticks on all 4 sides and ticks on the inside
+            fig.update_yaxes(title_text='Probability', row=i+1, col=1,
+                            showline=True, linewidth=border_thickness, linecolor='lightgray', 
+                            mirror='ticks', ticks='inside', tickwidth=tick_width, tickcolor=tick_color, 
+                            ticklen=tick_len, showgrid=False)
+
+            # Calculate metrics: RMS error, variance, mean error, percentage accuracy
+            rms_error = np.sqrt(np.mean(error**2))
+            variance = np.var(error)
+            mean_error = np.mean(error)
+            torque_range = np.max(actual_torques) - np.min(actual_torques)
+            percentage_accuracy = (1 - (rms_error / torque_range)) * 100
+
+            # Append metrics
+            rms_errors.append(rms_error)
+            variances.append(variance)
+            mean_errors.append(mean_error)
+            percentage_accuracies.append(percentage_accuracy)
+
+        # Update layout (no graph titles, with legend)
+        fig.update_layout(
+            height=400 * len(prediction_files),  # Adjust height based on the number of prediction files
+            width=800,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=50, r=50, t=50, b=50),  # Adjusted margin
+        )
+
+        # Show the full figure
+        fig.show()
+
+        # Save the full plot as HTML if specified
+        if save_html:
+            fig.write_html(f'error_histograms.html')
+
+        # Save specific subplots as PDF if requested
+        if save_pdf and pdf_subplots:
+            self.save_subplots_as_pdf(fig, pdf_subplots)
+
+        # Print the RMS errors, variances, and mean errors
+        print("Model Metrics:")
+        for i, (rms_error, variance, mean_error, accuracy) in enumerate(zip(rms_errors, variances, mean_errors, percentage_accuracies)):
+            print(f"Model {model_names[i]} - RMS Error: {rms_error:.3f}, Variance: {variance:.3f}, Mean Error: {mean_error:.3f}, Accuracy: {accuracy:.2f}%")
+
+        # Return RMS errors, variances, mean errors, and accuracies if needed
+        return {
+            "rms_errors": rms_errors,
+            "variances": variances,
+            "mean_errors": mean_errors,
+            "percentage_accuracies": percentage_accuracies
+        }
+
+
+
             
     def save_predictions(self, predictions, output_file):
         """
