@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 # GLOBAL VARIABLES
-HISTORY_SIZE = 24  # Based on the document: current state and two past states
+HISTORY_SIZE = 3  # Based on the document: current state and two past states
 INPUT_SIZE = 2 * HISTORY_SIZE  # Position errors and velocities
 
 MAX_TORQUE = 150

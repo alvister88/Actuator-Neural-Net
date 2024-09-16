@@ -11,7 +11,7 @@ import time
 
 def main():
     data_path = '../data/test3.txt'
-    model_path = '../weights/mlp_actuator_model5.pt'
+    model_path = '../weights/mlp_actuator_model6.pt'
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cpu')
     

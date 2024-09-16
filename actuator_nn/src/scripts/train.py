@@ -8,7 +8,7 @@ import wandb
 
 def main():
     # Define file paths for data and model weights
-    model_path = '../weights/mlp_actuator_model5.pt'
+    model_path = '../weights/mlp_actuator_model9.pt'
     train_data_path = '../data/train_data_6.txt'
     validation_data_path = '../data/validation_data_6.txt'
     eval_data_path = '../data/validation_data_6.txt'  # For evaluation after training
@@ -22,7 +22,7 @@ def main():
 
     # Wandb project configuration
     project_name = 'actuator-net-training'
-    run_name = 'mlp_actuator-net-5'
+    run_name = 'mlp_actuator-net-9'
     entity_name = 'alvister88'
 
     # Wandb initialization
@@ -34,7 +34,7 @@ def main():
         val_data_path=validation_data_path,
         lri=0.0001,            # Initial learning rate
         lrf=0.000008,           # Final learning rate
-        batch_size=256,          # Batch size for training
+        batch_size=64,          # Batch size for training
         patience=300,           # Patience for early stopping
         num_epochs=4000,         # Number of epochs to train
         weight_decay=0.01,      # Weight decay for regularization

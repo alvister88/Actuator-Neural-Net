@@ -44,7 +44,7 @@ class ActuatorNetEvaluator:
         return 2 * (data - min_val) / (max_val - min_val) - 1
 
     def denormalize_torque(self, normalized_torque):
-        return (normalized_torque + 1) * MAX_TORQUE / 2
+        return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
     def prepare_sequence_data(self, position_errors, velocities, torques):
         position_errors = self.normalize_data(position_errors, -MAX_ERROR, MAX_ERROR)
