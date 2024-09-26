@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import OneCycleLR 
+from torch.optim.lr_scheduler import OneCycleLR
 import numpy as np
 import pandas as pd
 import os
@@ -11,12 +11,39 @@ from ActuatorNet import ActuatorNet, HISTORY_SIZE, INPUT_SIZE, NUM_LAYERS, MAX_T
 import signal
 
 class ActuatorNetTrainer:
+    """Trainer class for the ActuatorNet neural network.
+
+    This class handles the training, validation, and logging processes for the ActuatorNet model.
+    
+    Attributes:
+        device (torch.device): The device to run the training on (CPU or GPU).
+        net (ActuatorNet): The neural network model to be trained.
+        stop_training (bool): Flag to handle early stopping manually.
+    """
+
     def __init__(self, input_size=INPUT_SIZE, hidden_size=HISTORY_SIZE, num_layers=NUM_LAYERS, dropout_rate=0.2, device=None):
+        """Initializes the ActuatorNetTrainer with the specified parameters.
+
+        Args:
+            input_size (int, optional): Size of the input features. Defaults to INPUT_SIZE.
+            hidden_size (int, optional): Size of the hidden layers in the GRU. Defaults to HISTORY_SIZE.
+            num_layers (int, optional): Number of GRU layers. Defaults to NUM_LAYERS.
+            dropout_rate (float, optional): Dropout rate for the network. Defaults to 0.2.
+            device (str, optional): Device to use for training ('cpu' or 'cuda'). Defaults to None.
+        """
         self.device = self.setup_device(device)
         self.net = ActuatorNet(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout_rate=dropout_rate).to(self.device)
         self.stop_training = False
 
     def setup_device(self, device):
+        """Sets up the device (CPU or GPU) for training.
+
+        Args:
+            device (str): The device to use for training.
+
+        Returns:
+            torch.device: The device to use for training.
+        """
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
@@ -29,6 +56,14 @@ class ActuatorNetTrainer:
         return device
 
     def load_data(self, file_path):
+        """Loads data from a CSV file.
+
+        Args:
+            file_path (str): Path to the CSV file containing the data.
+
+        Returns:
+            tuple: Arrays of position errors, velocities, accelerations, and torques.
+        """
         data = pd.read_csv(file_path, delimiter=',')
         position_errors = data['Error'].values
         velocities = data['Velocity'].values
@@ -37,6 +72,17 @@ class ActuatorNetTrainer:
         return position_errors, velocities, accelerations, torques
 
     def prepare_sequence_data(self, position_errors, velocities, accelerations, torques):
+        """Prepares the sequence data for training the model.
+
+        Args:
+            position_errors (array-like): Array of position errors.
+            velocities (array-like): Array of velocities.
+            accelerations (array-like): Array of accelerations.
+            torques (array-like): Array of torques.
+
+        Returns:
+            tuple: Arrays of input features (X) and target values (y).
+        """
         X, y = [], []
         for i in range(len(torques) - HISTORY_SIZE + 1):
             X.append(np.column_stack((position_errors[i:i+HISTORY_SIZE], 
@@ -46,9 +92,28 @@ class ActuatorNetTrainer:
         return np.array(X), np.array(y)
     
     def normalize_data(self, data, min_val, max_val):
+        """Normalizes the data to the range [-1, 1].
+
+        Args:
+            data (array-like): The data to be normalized.
+            min_val (float): The minimum value of the data range.
+            max_val (float): The maximum value of the data range.
+
+        Returns:
+            array-like: The normalized data.
+        """
         return 2 * (data - min_val) / (max_val - min_val) - 1
 
     def prepare_data(self, train_data_path, val_data_path):
+        """Prepares the training and validation data.
+
+        Args:
+            train_data_path (str): Path to the training data CSV file.
+            val_data_path (str): Path to the validation data CSV file.
+
+        Returns:
+            tuple: Tensors of training inputs, training targets, validation inputs, and validation targets.
+        """
         train_position_errors, train_velocities, train_accelerations, train_torques = self.load_data(train_data_path)
         val_position_errors, val_velocities, val_accelerations, val_torques = self.load_data(val_data_path)
 
@@ -74,9 +139,31 @@ class ActuatorNetTrainer:
         return X_train, y_train, X_val, y_val
 
     def denormalize_torque(self, normalized_torque):
+        """Denormalizes the torque value from the range [-1, 1] to the original scale.
+
+        Args:
+            normalized_torque (array-like): The normalized torque values.
+
+        Returns:
+            array-like: The denormalized torque values.
+        """
         return (normalized_torque + 1) * (2 * MAX_TORQUE) / 2 - MAX_TORQUE
 
     def setup_training(self, lri, lrf, weight_decay, num_epochs, steps_per_epoch, pct_start, anneal_strategy):
+        """Sets up the training configuration.
+
+        Args:
+            lri (float): Initial learning rate.
+            lrf (float): Final learning rate.
+            weight_decay (float): Weight decay for regularization.
+            num_epochs (int): Number of training epochs.
+            steps_per_epoch (int): Number of steps per epoch.
+            pct_start (float): Percentage of the cycle spent increasing the learning rate.
+            anneal_strategy (str): Annealing strategy for the learning rate.
+
+        Returns:
+            tuple: Loss criterion, optimizer, and learning rate scheduler.
+        """
         criterion = nn.MSELoss()
         optimizer = optim.AdamW(self.net.parameters(), lr=lri, weight_decay=weight_decay)
         total_steps = num_epochs * steps_per_epoch
@@ -90,6 +177,19 @@ class ActuatorNetTrainer:
         return criterion, optimizer, scheduler
 
     def train_epoch(self, X_train, y_train, optimizer, criterion, scheduler, batch_size):
+        """Trains the model for one epoch.
+
+        Args:
+            X_train (Tensor): Training inputs.
+            y_train (Tensor): Training targets.
+            optimizer (torch.optim.Optimizer): The optimizer.
+            criterion (torch.nn.Module): The loss function.
+            scheduler (torch.optim.lr_scheduler): The learning rate scheduler.
+            batch_size (int): The batch size.
+
+        Returns:
+            float: The average training loss for the epoch.
+        """
         self.net.train()
         train_loss = 0
         num_batches = len(X_train) // batch_size
@@ -106,6 +206,16 @@ class ActuatorNetTrainer:
         return train_loss / num_batches
 
     def validate(self, X_val, y_val, criterion):
+        """Validates the model on the validation set.
+
+        Args:
+            X_val (Tensor): Validation inputs.
+            y_val (Tensor): Validation targets.
+            criterion (torch.nn.Module): The loss function.
+
+        Returns:
+            float: The validation loss.
+        """
         self.net.eval()
         with torch.no_grad():
             val_outputs = self.net(X_val)
@@ -113,6 +223,19 @@ class ActuatorNetTrainer:
         return val_loss
 
     def log_metrics(self, epoch, num_epochs, train_loss, val_loss, lr, epoch_duration, total_train_time, is_best, save_path):
+        """Logs the training metrics to Weights & Biases.
+
+        Args:
+            epoch (int): The current epoch number.
+            num_epochs (int): The total number of epochs.
+            train_loss (float): The training loss for the current epoch.
+            val_loss (float): The validation loss for the current epoch.
+            lr (float): The current learning rate.
+            epoch_duration (float): Duration of the current epoch in seconds.
+            total_train_time (float): Total training time so far in seconds.
+            is_best (bool): Whether the current model is the best so far.
+            save_path (str): Path where the model is saved.
+        """
         wandb.log({
             "Train Loss": train_loss,
             "Val Loss": val_loss,
@@ -128,6 +251,15 @@ class ActuatorNetTrainer:
             print(message)
 
     def save_best_model(self, val_loss, save_path):
+        """Saves the model if it has the best validation loss so far.
+
+        Args:
+            val_loss (float): The validation loss for the current epoch.
+            save_path (str): Path where the model is saved.
+
+        Returns:
+            bool: Whether the model was saved as the best model.
+        """
         if val_loss < wandb.run.summary.get("Best Val Loss", float('inf')):
             torch.save(self.net.state_dict(), save_path)
             wandb.run.summary["Best Val Loss"] = val_loss
@@ -136,6 +268,14 @@ class ActuatorNetTrainer:
         return False
 
     def ensure_unique_save_path(self, save_path):
+        """Ensures the model save path is unique to avoid overwriting.
+
+        Args:
+            save_path (str): Initial save path for the model.
+
+        Returns:
+            str: A unique save path for the model.
+        """
         base_save_path = save_path.rsplit('.', 1)[0]
         extension = save_path.rsplit('.', 1)[1] if '.' in save_path else ''
         counter = 1
@@ -145,6 +285,12 @@ class ActuatorNetTrainer:
         return save_path
 
     def handle_interrupt(self, signum, frame):
+        """Handles the interrupt signal (Ctrl+C) to stop training early.
+
+        Args:
+            signum (int): The signal number.
+            frame (frame object): The current stack frame.
+        """
         print("\nInterrupt received. Stopping training after this epoch...")
         self.stop_training = True
 
@@ -152,8 +298,7 @@ class ActuatorNetTrainer:
                     lri=0.01, lrf=0.001, batch_size=64, patience=100,
                     weight_decay=0.01, num_epochs=1000, pct_start=0.2, anneal_strategy='cos', save_path='actuator_model_gru.pt', 
                     entity_name='your_account', project_name='actuator-net-training', run_name='actuator-net-gru-run'):  
-        """
-        Trains the actuator neural network model using the provided training and validation data.
+        """Trains the actuator neural network model using the provided training and validation data.
 
         Args:
             train_data_path (str): Path to the training data file.
@@ -235,6 +380,6 @@ class ActuatorNetTrainer:
         return self.net
 
 # Example usage
-if __name__ == "__main__":
+if __name__ == "__main__":  
     trainer = ActuatorNetTrainer()
     trainer.train_model('path/to/train_data.csv', 'path/to/val_data.csv')

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 # GLOBAL VARIABLES
 HISTORY_SIZE = 30
-INPUT_SIZE = 3  # Position error and velocity
+INPUT_SIZE = 3  # Position error, velocity, acceleration
 NUM_LAYERS = 4
 
 '''Warning! Changing these will change all the models!'''

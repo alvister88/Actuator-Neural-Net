@@ -15,8 +15,8 @@ with open('requirements.txt') as f:
 
 setup(
     name='actuator_nn',
-    version='0.0.0',
-    description='Neural Network for system identification of actuators.',
+    version='1.0.0',
+    description='This is a torque estimation framework for dynamic robotic actuators.',
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
     author='Alvin Zhu',
