@@ -20,7 +20,7 @@ def main():
 
     evaluator = ActuatorNetEvaluator(model_path, run_device='cuda')
     
-    evaluator.plot_predictions(data_file=data_path, prediction_files=prediction_files, plot_vs_time=True, save_html=False)
+    evaluator.plot_predictions(data_file=data_path, prediction_files=prediction_files, model_names=model_names, plot_vs_time=True, save_html=False)
     evaluator.plot_error_histograms(data_file=data_path, prediction_files=prediction_files, model_names=model_names, save_html=False)
 
 if __name__ == "__main__":

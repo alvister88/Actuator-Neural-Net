@@ -380,7 +380,7 @@ class ActuatorNetEvaluator:
 
 
 
-    def plot_predictions(self, data_file, prediction_files, plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None, plot_config=None):
+    def plot_predictions(self, data_file, prediction_files, model_names, plot_vs_time=False, save_html=False, save_pdf=False, pdf_subplots=None, plot_config=None):
         # Default plot configuration
         default_config = {
             'position_error': False,
@@ -457,15 +457,16 @@ class ActuatorNetEvaluator:
                 line=dict(color='#161D6F', width=line_thickness)
             ), row=current_row, col=1)
 
-            # Plot predictions from each file
-            colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(218,247,166,0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']  # Semi-transparent colors
+            # Plot predictions from each file in reverse order but keep model names in order
+            colors = ['rgba(0,159,189,0.8)', 'rgba(255,87,51,0.8)', 'rgba(180, 227, 128, 0.8)', 'rgba(255,51,0,0.8)', 'rgba(51,255,0,0.8)']  # Updated third color
 
             for i, pred_file in enumerate(prediction_files):
                 predictions = np.loadtxt(pred_file, delimiter=',')
+                model_name = model_names[i]  # Maintain model name order
                 fig.add_trace(go.Scatter(
                     x=x_axis[-len(predictions):], y=predictions, mode='lines',
-                    name=f'Predicted Torque {i+1}',
-                    line=dict(color=colors[i % len(colors)], width=line_thickness, dash='10px, 2px', backoff=True)
+                    name=f'Predicted Torque {model_name}',
+                    line=dict(color=colors[i % len(colors)], width=line_thickness, dash='10px, 2px')
                 ), row=current_row, col=1)
 
             current_row += 1
@@ -477,7 +478,7 @@ class ActuatorNetEvaluator:
                 error = predictions - actual_torques[-len(predictions):]
                 fig.add_trace(go.Scatter(
                     x=x_axis[-len(predictions):], y=error, mode='lines',
-                    name=f'Error {i+1}',
+                    name=f'Error {model_names[i]}',
                     line=dict(color=colors[i % len(colors)], width=line_thickness)
                 ), row=current_row, col=1)
             current_row += 1
@@ -493,13 +494,13 @@ class ActuatorNetEvaluator:
                 ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks'
             )
 
-        # Update x-axes for all subplots
+        # Update x-axes for all subplots with showticklabels=True to ensure x-axis values are drawn
         for i in range(1, active_plots + 1):
             fig.update_xaxes(
                 title_text=x_axis_label, row=i, col=1, showline=True, linecolor='lightgray',
                 linewidth=border_thickness, ticks='inside', tickcolor=tick_color,
                 ticklen=tick_len, tickwidth=tick_width, showgrid=False, mirror='ticks',
-                showticklabels=True
+                showticklabels=True  # Ensure x-axis values are shown
             )
 
         # Calculate metrics for annotations
@@ -514,27 +515,11 @@ class ActuatorNetEvaluator:
             rms_errors.append(rms_error)
             percentage_accuracies.append(percentage_accuracy)
 
-        # Add annotations as a table
-        annotation_text = "Model | RMS Error (N·m) | Accuracy (%)<br>"
-        for i, (rms_error, accuracy) in enumerate(zip(rms_errors, percentage_accuracies)):
-            annotation_text += f"{i+1} | {rms_error:.3f} | {accuracy:.2f}<br>"
-
-        fig.add_annotation(
-            xref="paper", yref="paper",
-            x=0.3, y=1.05,
-            text=annotation_text,
-            showarrow=False,
-            font=dict(size=12),
-            align="center",
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor="black",
-            borderwidth=1
-        )
 
         # Update layout
         fig.update_layout(
-            height=350 * active_plots,  # Adjust height based on number of active plots
-            width=800,
+            height=450 * active_plots,  # Adjust height based on number of active plots
+            width=900,
             title_text=f'Data and Predictions Visualization',
             showlegend=True,
             legend=dict(
@@ -559,6 +544,9 @@ class ActuatorNetEvaluator:
         # Save specific subplots as PDF if requested
         if save_pdf and pdf_subplots:
             self.save_subplots_as_pdf(fig, pdf_subplots)
+
+
+
             
     def plot_error_histograms(self, data_file, prediction_files, model_names, save_html=False, save_pdf=False, pdf_subplots=None):
         # Load the original data
@@ -607,13 +595,13 @@ class ActuatorNetEvaluator:
             fig.update_xaxes(title_text='Error (N·m)', row=i+1, col=1,
                             showline=True, linewidth=border_thickness, linecolor='lightgray', 
                             mirror='ticks', ticks='inside', tickwidth=tick_width, tickcolor=tick_color, 
-                            ticklen=tick_len, showgrid=False)
+                            ticklen=tick_len, showgrid=False, showticklabels=True, dtick=5)
 
             # Update y-axes with mirrored ticks on all 4 sides and ticks on the inside
             fig.update_yaxes(title_text='Probability', row=i+1, col=1,
                             showline=True, linewidth=border_thickness, linecolor='lightgray', 
                             mirror='ticks', ticks='inside', tickwidth=tick_width, tickcolor=tick_color, 
-                            ticklen=tick_len, showgrid=False)
+                            ticklen=tick_len, showgrid=False, showticklabels=True)
 
             # Calculate metrics: RMS error, variance, mean error, percentage accuracy
             rms_error = np.sqrt(np.mean(error**2))
@@ -631,7 +619,7 @@ class ActuatorNetEvaluator:
         # Update layout (no graph titles, with legend)
         fig.update_layout(
             height=400 * len(prediction_files),  # Adjust height based on the number of prediction files
-            width=800,
+            width=600,
             showlegend=True,
             legend=dict(
                 orientation="h",
