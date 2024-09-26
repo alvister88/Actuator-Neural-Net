@@ -2,6 +2,7 @@
 
 ## Info
 This is a torque estimation framework for dynamic robotic actuators. There are three versions of the proposed torque estimation framework: position velocity acceleration-GRU (PVA-GRU [main]), position velocity-GRU (PV-GRU [pv-gru_net]), and multi-layer perceptron (MLP [mlp_net]). The MLP version is based on the Actuator Net proposed by ETH Zurich.
+
 This framework was included in a paper submitted to ICRA 2025. The corresponding video submission can be accessed via the following link: https://youtu.be/SJexZHEwWtc
 
 ## User-Manual
