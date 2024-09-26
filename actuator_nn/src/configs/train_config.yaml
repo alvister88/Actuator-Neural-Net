@@ -1,0 +1,27 @@
+model:
+  path: '../weights/actuator_gruv3_model15.pt'
+  hidden_size: 30
+  num_layers: 4    
+  dropout_rate: 0.03
+
+data:
+  train_data_path: '../data/gains3/train_LP2.txt'
+  validation_data_path: '../data/gains3/valid_LP2.txt'
+  eval_data_path: '../data/gains3/test3.txt'
+
+training:
+  lri: 0.0001
+  lrf: 0.000005
+  batch_size: 64
+  patience: 400
+  num_epochs: 3500
+  pct_start: 0.12
+  anneal_strategy: 'cos'
+  weight_decay: 0.01
+
+wandb:
+  project_name: 'actuator-net-training-v3'
+  run_name: 'actuator-net-gruv3-15'
+  entity_name: 'alvister88'
+
+device: 'cuda'  
